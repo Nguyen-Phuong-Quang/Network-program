@@ -82,6 +82,7 @@ Rectangle {
             leftPadding: 20
             width: parent.width
             anchors.centerIn: parent
+            echoMode: TextInput.Password
         }
     }
 
