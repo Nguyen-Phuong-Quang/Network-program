@@ -5,18 +5,13 @@
 #include <QObject>
 #include <QList>
 #include <QMutex>
-#include <QMutexLocker>
-#include <QReadWriteLock>
-
 #include "User.h"
 #include "clientthread.h"
 
-//QReadWriteLock readWriteLock;
-//QReadLocker readLock{&readWriteLock}; // Auto read-locker
-//QWriteLocker writeLock{&readWriteLock}; // Auto write-locker
-
 int main()
 {
+    QMutex mutex;
+    QMutex db_mutex;
 
     // Create and open the database connection
     QSqlDatabase database = QSqlDatabase::addDatabase("QPSQL");
@@ -38,18 +33,16 @@ int main()
     QTcpServer server;
     server.listen(QHostAddress::Any, 12345); // Listen on any IP and port
     qDebug() << "Server start...";
+
     while (true) {
         if (server.waitForNewConnection()) {
             QTcpSocket* clientSocket = server.nextPendingConnection();
 
-            ClientThread* thread = new ClientThread(clientSocket->socketDescriptor(), database);
+            ClientThread* thread = new ClientThread(clientSocket->socketDescriptor(), database, db_mutex);
 
             QObject::connect(thread, &ClientThread::addUserToOnlineList, [&](int id, QString name) {
-
-                userList.append({id, name, clientSocket});
-
-
-                qDebug() << "User signed in: ID" << id << "Name:" << name;
+                mutex.lock();
+                userList.append({id, name, clientSocket, 0, 0});
 
                 for(const User& user: userList) {
                     QDataStream codeStream(user.socket);
@@ -68,48 +61,132 @@ int main()
                         stream << u.name;
                     }
 
-
                     // Send the serialized array to the client
                     user.socket->write(dataArray);
                     user.socket->flush();
 
                 }
+                mutex.unlock();
             });
 
-            // Connect to the userDisconnected signal of the ClientThread
-            QObject::connect(thread, &ClientThread::userDisconnected, [&](int userId) {
-                // Remove the user from the userList based on the user ID
-                for (auto it = userList.begin(); it != userList.end(); ++it) {
-                    if (it->id == userId) {
-                        userList.erase(it);
+            // Handle switch chat
+            QObject::connect(thread, &ClientThread::switchChat, [&](int type, int current_id, int target_id) {
+                mutex.lock();
+                for(User& user: userList) {
+                    if(user.id  == current_id) {
+                        user.type = type;
+                        user.target_id = target_id;
+                        break;
+                    }
+                }
+                mutex.unlock();
+            });
+
+            // Handle switch chat
+            QObject::connect(thread, &ClientThread::switchChat, [&](int type, int current_id, int target_id) {
+                mutex.lock();
+                for(User& user: userList) {
+                    if(user.id  == current_id) {
+                        user.type = type;
+                        user.target_id = target_id;
+                        break;
+                    }
+                }
+                mutex.unlock();
+            });
+
+            // Handle send message
+            QObject::connect(thread, &ClientThread::sendMessage, [&](int current_id, QString message) {
+                int type = -1;
+                int target_id = -1;
+
+                mutex.lock();
+                for(const User& user: userList) {
+                    if(user.id  == current_id) {
+                        type = user.type;
+                        target_id = user.target_id;
                         break;
                     }
                 }
 
-                qDebug() << "User id: " << userId << "Disconnect";
-
                 for(const User& user: userList) {
-                    QDataStream coedStream(user.socket);
-                    coedStream << 2;
+                    if(user.id == target_id) {
+                        if(type == user.type && user.target_id == current_id) {
+                            QDataStream stream(user.socket);
 
-                    QByteArray dataArray;
-                    QDataStream stream(&dataArray, QIODevice::WriteOnly);
-                    // Serialize the array size
+                            stream << 4;
 
-                    quint32 arraySize = static_cast<quint32>(userList.size());
-                    stream << arraySize;
+                            stream << current_id;
+                            stream << message;
 
-                    // Serialize each struct in the array
-                    for (const User& u : userList) {
-                        stream << u.id;
-                        stream << u.name;
+                            user.socket->flush();
+
+                            break;
+
+                        }
+                    }
+                }
+                mutex.unlock();
+
+                if(type == 0) {
+                    QSqlQuery query(database);
+
+                    query.prepare("insert into direct_msg (sender_id, receiver_id, content) values (:senderId, :receiverId, :message)");
+                    query.bindValue(":senderId", current_id);
+                    query.bindValue(":receiverId", target_id);
+                    query.bindValue(":message", message);
+                    db_mutex.lock();
+                    if (!query.exec()) {
+                        qDebug() << "Query execution failed!";
+                    }
+                    db_mutex.unlock();
+                }
+
+
+            });
+
+            // Connect to the userDisconnected signal of the ClientThread
+            QObject::connect(thread, &ClientThread::userDisconnected, [&](int userId) {
+                if(userId > 0) {
+                    mutex.lock();
+                    // Remove the user from the userList based on the user ID
+                    for (auto it = userList.begin(); it != userList.end(); ++it) {
+                        if (it->id == userId) {
+                            userList.erase(it);
+                            break;
+                        }
                     }
 
-                    // Send the serialized array to the client
-                    user.socket->write(dataArray);
-                    user.socket->flush();
+                    qDebug() << "User id: " << userId << "Disconnect";
 
+                    for(const User& user: userList) {
+                        QDataStream codeStream(user.socket);
+                        codeStream << 2;
+
+                        QByteArray dataArray;
+                        QDataStream stream(&dataArray, QIODevice::WriteOnly);
+                        // Serialize the array size
+
+
+                        quint32 arraySize = static_cast<quint32>(userList.size());
+                        stream << arraySize;
+
+                        // Serialize each struct in the array
+                        for (const User& u : userList) {
+                            stream << u.id;
+                            stream << u.name;
+                        }
+
+                        // Send the serialized array to the client
+                        user.socket->write(dataArray);
+                        user.socket->flush();
+
+                        mutex.unlock();
+                    }
                 }
+
+                clientSocket->disconnectFromHost();
+                clientSocket->deleteLater();
             });
 
             QObject::connect(thread, &ClientThread::finished, thread, &ClientThread::deleteLater);

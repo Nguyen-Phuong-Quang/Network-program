@@ -21,7 +21,8 @@ public slots:
     QVariantList getUserListVariant();
     int get_current_user_id();
     void signIn(QString username, QString password);
-    void switchSingleChat(int id);
+    void switchChat(int type, int target_id);
+    void sendMessage(QString message);
     QVariantList getChatVariant() const;
 
 signals:

@@ -1,6 +1,6 @@
 #include "clientthread.h"
 
-ClientThread::ClientThread(qintptr socketDescriptor, QSqlDatabase& database, QObject *parent) : QThread(parent), socketDescriptor(socketDescriptor), database(database) {}
+ClientThread::ClientThread(qintptr socketDescriptor, QSqlDatabase& database, QMutex& db_mutex, QObject *parent) : QThread(parent), socketDescriptor(socketDescriptor), database(database), db_mutex(db_mutex) {}
 
 void ClientThread::sendArrayToClient(const QList<User>& myStructArray, QTcpSocket* socket)
 {
@@ -21,7 +21,7 @@ void ClientThread::sendArrayToClient(const QList<User>& myStructArray, QTcpSocke
     socket->flush();
 }
 
-void ClientThread::sendMessage(const QList<SingleMessage>& myStructArray, QTcpSocket* socket)
+void ClientThread::renderMessagesToClient(const QList<SingleMessage>& myStructArray, QTcpSocket* socket)
 {
     QByteArray dataArray;
     QDataStream stream(&dataArray, QIODevice::WriteOnly);
@@ -54,8 +54,8 @@ void ClientThread::run()
 
     while (socket.waitForReadyRead()) {
         int code;
-        QDataStream codeStream(&socket);
-        codeStream >> code;
+        QDataStream stream(&socket);
+        stream >> code;
 
         switch (code) {
         // Client disconnect
@@ -70,26 +70,28 @@ void ClientThread::run()
             QByteArray data = socket.readAll();
 
             // Deserialize the data into the struct
-            QDataStream stream(data);
+            QDataStream dataStream(data);
             SignIn myStruct;
-            stream >> myStruct.username;
-            stream >> myStruct.password;
+            dataStream >> myStruct.username;
+            dataStream >> myStruct.password;
 
             // Execute a query
             QSqlQuery query(database);
             query.prepare("SELECT * FROM users where username = :username");
             query.bindValue(":username", myStruct.username);
 
+            db_mutex.lock();
             if (!query.exec()) {
                 qDebug() << "Query execution failed!";
             }
+            db_mutex.unlock();
 
             // type
-            codeStream << 1;
+            stream << 1;
 
             if(!query.next()) {
                 // No user found
-                codeStream << 404;
+                stream << 404;
                 break;
             }
 
@@ -97,53 +99,66 @@ void ClientThread::run()
 
             if(password != myStruct.password) {
                 // Wrong creadential
-                codeStream << 401;
+                stream << 401;
                 break;
             }
 
             // status
-            codeStream << 200;
+            stream << 200;
 
             currentUserId = query.value("user_id").toInt();
 
             // user log in
-            codeStream << query.value("user_id").toInt();
-            codeStream << query.value("name").toString();
+            stream << query.value("user_id").toInt();
+            stream << query.value("name").toString();
             socket.flush();
 
             emit addUserToOnlineList(query.value("user_id").toInt(), query.value("name").toString());
+            break;
         }
 
             // -----------------------------------------------------------------
             // Switch chat
         case 2: {
             QList<SingleMessage> messageList;
-            int currentId;
+            int type;
             int targetId;
-            codeStream >> currentId;
-            codeStream >> targetId;
+            stream >> type;
+            stream >> targetId;
 
             QSqlQuery query(database);
 
             query.prepare("select * from direct_msg where (sender_id = :currentId and receiver_id = :targetId) or (sender_id = :targetId and receiver_id = :currentId) order by created_time");
-            query.bindValue(":currentId", currentId);
+            query.bindValue(":currentId", currentUserId);
             query.bindValue(":targetId", targetId);
 
+            db_mutex.lock();
             if (!query.exec()) {
                 qDebug() << "Query execution failed!";
             }
+            db_mutex.unlock();
 
             while(query.next()) {
                 SingleMessage message;
                 message.sender_id = query.value("sender_id").toInt();
                 message.content = query.value("content").toString();
-                qDebug() << message.sender_id << ": " << message.content ;
                 messageList.append(message);
             }
 
-            codeStream << 3;
-            codeStream << 200;
-            sendMessage(messageList, &socket);
+            stream << 3;
+            stream << 200;
+            renderMessagesToClient(messageList, &socket);
+            emit switchChat(type, currentUserId, targetId);
+            break;
+        }
+
+            // -----------------------------------------------------------------
+            // Send message
+        case 3: {
+            QString message;
+            stream >> message;
+            emit sendMessage(currentUserId, message);
+            break;
         }
         }
 
@@ -157,7 +172,6 @@ void ClientThread::handleDisconnected()
 {
     QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
     if (socket) {
-
         socket->deleteLater();
         quit();  // Terminate the thread event loop
     }

@@ -67,7 +67,7 @@ Window {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        client.switchSingleChat(modelData.id)
+                                        client.switchChat(0, modelData.id)
                                     }
                                 }
                             }
@@ -143,6 +143,7 @@ Window {
                         anchors.left: parent.left
                         radius: 50
                         TextInput {
+                            id: chatTextInputId
                             leftPadding: 20
                             rightPadding: 20
                             anchors.centerIn: parent
@@ -157,6 +158,10 @@ Window {
                         height: parent.height
                         anchors.right: parent.right
                         text: "Send"
+                        onClicked: {
+                            client.sendMessage(chatTextInputId.text);
+                            chatTextInputId.text = "";
+                        }
                     }
                 }
             }

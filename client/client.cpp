@@ -122,6 +122,19 @@ void Client::readData()
             emit renderChat();
             break;
         }
+
+        case 4: {
+            SingleMessage message;
+            in >> message.sender_id;
+            in >> message.content;
+
+            QVariantMap messageMap;
+            messageMap["sender_id"] = message.sender_id;
+            messageMap["content"] = message.content;
+            chatVariant.append(messageMap);
+            emit renderChat();
+            break;
+        }
         }
 
         emit render();
@@ -143,7 +156,6 @@ QVariantList Client::getUserListVariant()
 }
 
 void Client::signIn(QString username, QString password) {
-
     // Send data to the server
     QDataStream out(socket);
 
@@ -154,13 +166,29 @@ void Client::signIn(QString username, QString password) {
 
 }
 
-void Client::switchSingleChat(int targetUserId) {
+void Client::switchChat(int type ,int target_Id) {
     // Send data to the server
     QDataStream out(socket);
 
     out << 2;
-    out << currentUserId;
-    out << targetUserId;
+    out << type;
+    out << target_Id;
+    socket->flush();
+}
+
+void Client::sendMessage(QString message) {
+
+    QVariantMap messageMap;
+    messageMap["sender_id"] = currentUserId;
+    messageMap["content"] = message;
+    chatVariant.append(messageMap);
+
+    emit renderChat();
+
+    // Send data to the server
+    QDataStream out(socket);
+    out << 3;
+    out << message;
     socket->flush();
 }
 
