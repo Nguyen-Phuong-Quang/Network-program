@@ -9,88 +9,6 @@ Window {
     height: 640
     title: qsTr("Chat app")
 
-    signal changeToUser(int it)
-
-    function demoMessage1() {
-        return [
-                    {
-                        sender_id: 1,
-                        message: "Hello"
-                    },
-                    {
-                        sender_id: 2,
-                        message: "Hi"
-                    },
-                    {
-                        sender_id: 1,
-                        message: "My nams is Nguyen Phuong Quang"
-                    },
-                    {
-                        sender_id: 2,
-                        message: "Hi Quang, i'm Giang"
-                    },
-                    {
-                        sender_id: 1,
-                        message: "Nice to meet you"
-                    },
-                    {
-                        sender_id: 2,
-                        message: "How do you feel right now?"
-                    },
-                    {
-                        sender_id: 1,
-                        message: "I'm good"
-                    }
-                ]
-    }
-
-    function demoMessage2() {
-        return [
-                    {
-                        sender_id: 1,
-                        message: "hiuebifbu"
-                    },
-                    {
-                        sender_id: 2,
-                        message: "Hi"
-                    },
-                    {
-                        sender_id: 1,
-                        message: "My nams is Nguyen Phuong Quang"
-                    },
-                    {
-                        sender_id: 2,
-                        message: "Hi Quang, i'm Giang"
-                    },
-                    {
-                        sender_id: 1,
-                        message: "Nice to meet you"
-                    },
-                    {
-                        sender_id: 2,
-                        message: "How do you feel right now?"
-                    },
-                    {
-                        sender_id: 1,
-                        message: "I'm good"
-                    }
-                ]
-    }
-
-
-    function handleSelectUser(modelData) {
-        console.log(modelData.id + " " + modelData.name)
-
-        if(modelData.id === 1) {
-            chatListId.model = demoMessage1()
-        }
-
-        if(modelData.id === 2) {
-            chatListId.model = demoMessage2()
-        }
-    }
-
-
     Rectangle {
         id: mainViewId
         anchors.fill: parent
@@ -103,7 +21,6 @@ Window {
             width: 200
             height: parent.height
             color: "#cccccc"
-
 
             ScrollView {
                 anchors.fill: parent
@@ -138,7 +55,7 @@ Window {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        handleSelectUser(modelData)
+                                        client.switchSingleChat(modelData.id)
                                     }
                                 }
                             }
@@ -167,12 +84,18 @@ Window {
                 anchors.fill: parent
                 anchors.topMargin: 20
                 anchors.bottomMargin: 60
+
                 ListView {
                     id: chatListId
-                    anchors.top: parent.to
+                    anchors.top: parent.top
                     width: parent.width
-                    height: contentHeight
-                    model: []
+                    clip: true // Clip the content within the ListView
+                    model: ListModel {}
+
+                    onModelChanged: {
+                        chatListId.contentY = chatListId.contentHeight - chatListId.height
+                    }
+
                     delegate: Component {
                         Rectangle {
                             anchors.horizontalCenter: parent.horizontalCenter
@@ -181,20 +104,21 @@ Window {
                             color: "transparent"
                             Text {
                                 id: messageContentId
-                                text: modelData.message
+                                text: modelData.content
                                 color: "white"
-                                anchors.right: modelData.sender_id === client.get_current_user_id() && parent.right
+                                anchors.right: modelData.sender_id === client.get_current_user_id() ? parent.right : undefined
                             }
                         }
                     }
                 }
             }
+
             Rectangle {
                 id: sendMessageRectId
                 width: parent.width
                 height: 60
                 anchors.bottom: parent.bottom
-                color: "transparent"
+                color: "#333333"
                 Rectangle {
                     width: parent.width - 40
                     height: parent.height - 20
@@ -232,7 +156,32 @@ Window {
         anchors.fill: parent
         visible: true
         SignIn{
+            id: signInId
+        }
+    }
 
+    Connections {
+        target: client
+
+        onSignInResponse: {
+            if(statusCode === 200) {
+                mainViewId.visible = true;
+                signInViewId.visible = false;
+            } else if(statusCode === 404) {
+                signInId.error = "No user found!"
+                console.log("No user found!");
+            }else if(statusCode === 401) {
+                signInId.error = "Wrong creadential!"
+            }
+        }
+
+        onRender: {
+            userListId.model = client.getUserListVariant()
+        }
+
+        onRenderChat: {
+            chatListId.model = client.getChatVariant()
+            chatListId.contentY = chatListId.contentHeight - chatListId.height
         }
     }
 

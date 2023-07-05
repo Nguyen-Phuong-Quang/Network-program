@@ -1,49 +1,45 @@
-#include <QSqlDatabase>
-#include <QSqlQuery>
+#include <QTcpServer>
+#include <QTcpSocket>
+#include <QDataStream>
 #include <QDebug>
-#include <QSqlRecord>
-
+#include <QObject>
+#include "clientthread.h"
 int main()
 {
-    // Register the PostgreSQL driver
-    QSqlDatabase db = QSqlDatabase::addDatabase("QPSQL");
 
-    // Set the connection parameters
-    db.setHostName("chat-app.c6aoubm3unwy.us-east-1.rds.amazonaws.com");
-    db.setPort(5432); // Default PostgreSQL port
-    db.setDatabaseName("test");
-    db.setUserName("postgres");
-    db.setPassword("Quang251209");
+    // Create and open the database connection
+    QSqlDatabase database = QSqlDatabase::addDatabase("QPSQL");
+    database.setHostName("chat-app.c6aoubm3unwy.us-east-1.rds.amazonaws.com");
+    database.setPort(5432);
+    database.setDatabaseName("chat-app");
+    database.setUserName("postgres");
+    database.setPassword("Quang251209");
 
-    // Attempt to open the database connection
-    if (db.open()) {
-        qDebug() << "Connected to PostgreSQL database!";
-        // Perform database operations here
+    if (!database.open()) {
+        qDebug() << "Failed to connect to database:" << database.lastError().text();
+        return 1;
     } else {
-        qDebug() << "Error connecting to PostgreSQL database" ;
+        qDebug() << "Database connected!";
     }
 
-    QSqlQuery query;
+    QTcpServer server;
+    server.listen(QHostAddress::Any, 12345); // Listen on any IP and port
+    qDebug() << "Server start...";
+    while (true) {
+        if (server.waitForNewConnection()) {
+            QTcpSocket* clientSocket = server.nextPendingConnection();
 
-    // Prepare the SQL query
-    QString queryString = "SELECT * FROM product";
-    query.prepare(queryString);
+            ClientThread* thread = new ClientThread(clientSocket->socketDescriptor(), database);
+            QObject::connect(thread, &ClientThread::finished, thread, &ClientThread::deleteLater);
+            QObject::connect(thread, &ClientThread::error, [clientSocket](QAbstractSocket::SocketError socketError) {
+                qDebug() << "Socket error:" << socketError;
+                clientSocket->disconnectFromHost();
+                clientSocket->deleteLater();
+            });
 
-    // Execute the query
-    if (query.exec()) {
-        // Iterate over the retrieved records
-        while (query.next()) {
-            // Access individual fields of the record
-            int productId = query.value("id").toInt();
-            QString productName = query.value("name").toString();
-            // Access other fields as needed
-
-            // Print the retrieved record to the console or perform other operations
-            qDebug() << "Product ID:" << productId << "Product Name:" << productName;
+            thread->start();
         }
-    } else {
-        qDebug() << "Error executing query:" << query.last();
-        return 1; // Return an error code or handle the error appropriately
     }
+
     return 0;
 }

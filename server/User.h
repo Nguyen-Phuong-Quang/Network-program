@@ -1,9 +1,7 @@
 #ifndef USER_H
 #define USER_H
-
 #include<QString>
-
-struct User{
+struct User {
     int id;
     QString name;
 };
