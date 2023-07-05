@@ -10,6 +10,7 @@
 #include <QSqlQuery>
 #include <QSqlRecord>
 #include <QSqlError>
+#include <QTimer>
 #include <iostream>
 #include "SingleMessage.h"
 #include "User.h"
@@ -29,6 +30,8 @@ protected:
 
 signals:
     void error(QAbstractSocket::SocketError socketError);
+    void addUserToOnlineList(int id, QString name);
+    void userDisconnected(int id);
 
 private slots:
     void handleDisconnected();
@@ -36,6 +39,7 @@ private slots:
 private:
     qintptr socketDescriptor;
     QSqlDatabase& database;
+    int currentUserId = -1;
 };
 
 #endif // CLIENTTHREAD_H

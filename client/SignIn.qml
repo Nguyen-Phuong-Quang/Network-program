@@ -16,6 +16,7 @@ Rectangle {
 
     function handleOnClick() {
         if(username.text && password.text) {
+            loadingId.visible = true;
             client.signIn(username.text, password.text)
         } else {
             console.log("Missing field!");

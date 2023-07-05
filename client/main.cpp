@@ -25,5 +25,9 @@ int main(int argc, char *argv[])
     }, Qt::QueuedConnection);
     engine.load(url);
 
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, [&client]() {
+        delete client;
+    });
+
     return app.exec();
 }

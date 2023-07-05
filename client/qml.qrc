@@ -2,5 +2,8 @@
     <qresource prefix="/">
         <file>main.qml</file>
         <file>SignIn.qml</file>
+        <file>LoadingComponent.qml</file>
+        <file>loading.svg</file>
     </qresource>
+    <qresource prefix="/image"/>
 </RCC>

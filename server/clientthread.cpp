@@ -58,7 +58,13 @@ void ClientThread::run()
         codeStream >> code;
 
         switch (code) {
-        //Sign in
+        // Client disconnect
+        case 0: {
+            emit userDisconnected(currentUserId);
+            break;
+        }
+            // -----------------------------------------------------------------
+            //Sign in
         case 1: {
             // Read the data from the socket
             QByteArray data = socket.readAll();
@@ -68,7 +74,6 @@ void ClientThread::run()
             SignIn myStruct;
             stream >> myStruct.username;
             stream >> myStruct.password;
-
 
             // Execute a query
             QSqlQuery query(database);
@@ -99,26 +104,17 @@ void ClientThread::run()
             // status
             codeStream << 200;
 
+            currentUserId = query.value("user_id").toInt();
+
             // user log in
-            codeStream << 1;
-            codeStream << "Quang";
+            codeStream << query.value("user_id").toInt();
+            codeStream << query.value("name").toString();
             socket.flush();
 
-            QList<User> myStructList;
-
-            // Add 6 elements to the list
-            myStructList.append({7, "John"});
-            myStructList.append({2, "Alice"});
-            myStructList.append({3, "Bob"});
-            myStructList.append({4, "Emma"});
-            myStructList.append({5, "Michael"});
-            myStructList.append({6, "Sophia"});
-
-            codeStream << 2;
-
-            sendArrayToClient(myStructList, &socket);
+            emit addUserToOnlineList(query.value("user_id").toInt(), query.value("name").toString());
         }
 
+            // -----------------------------------------------------------------
             // Switch chat
         case 2: {
             QList<SingleMessage> messageList;
@@ -127,18 +123,22 @@ void ClientThread::run()
             codeStream >> currentId;
             codeStream >> targetId;
 
-            if (targetId == 2) {
-                // Add 20 elements to the list
-                for (int i = 0; i < 40; ++i) {
-                    SingleMessage message;
-                    if (i % 2 == 0) {
-                        message.sender_id = 1;
-                    } else {
-                        message.sender_id = 2;
-                    }
-                    message.content = "This is message number " + QString::number(i + 1);
-                    messageList.append(message);
-                }
+            QSqlQuery query(database);
+
+            query.prepare("select * from direct_msg where (sender_id = :currentId and receiver_id = :targetId) or (sender_id = :targetId and receiver_id = :currentId) order by created_time");
+            query.bindValue(":currentId", currentId);
+            query.bindValue(":targetId", targetId);
+
+            if (!query.exec()) {
+                qDebug() << "Query execution failed!";
+            }
+
+            while(query.next()) {
+                SingleMessage message;
+                message.sender_id = query.value("sender_id").toInt();
+                message.content = query.value("content").toString();
+                qDebug() << message.sender_id << ": " << message.content ;
+                messageList.append(message);
             }
 
             codeStream << 3;
@@ -157,6 +157,7 @@ void ClientThread::handleDisconnected()
 {
     QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
     if (socket) {
+
         socket->deleteLater();
         quit();  // Terminate the thread event loop
     }

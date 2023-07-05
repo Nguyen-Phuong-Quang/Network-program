@@ -31,6 +31,11 @@ Client::Client(QObject *parent) : QObject(parent)
 
 Client::~Client()
 {
+    QDataStream stream(socket);
+
+    stream << 0;
+    socket->flush();
+
     receiveThread.quit();
     receiveThread.wait();
     socket->disconnectFromHost();
@@ -78,10 +83,12 @@ void Client::readData()
                 User user;
                 stream >> user.id;
                 stream >> user.name;
-                QVariantMap userMap;
-                userMap["id"] = user.id;
-                userMap["name"] = user.name;
-                userListVariant.append(userMap);
+                if(user.id != currentUserId) {
+                    QVariantMap userMap;
+                    userMap["id"] = user.id;
+                    userMap["name"] = user.name;
+                    userListVariant.append(userMap);
+                }
 
             }
             break;

@@ -4,10 +4,21 @@ import QtQuick.Controls 2.4
 import QtQuick.Layouts 1.3
 
 Window {
+    property int appWidth: 1080
     visible: true
-    width: 860
-    height: 640
+    width: appWidth
+    height: 800
     title: qsTr("Chat app")
+
+    onWidthChanged: {
+        appWidth = width
+    }
+
+    LoadingComponent {
+        id: loadingId
+        anchors.centerIn: parent
+        visible: false
+    }
 
     Rectangle {
         id: mainViewId
@@ -18,7 +29,7 @@ Window {
             anchors {
                 top: parent.top
             }
-            width: 200
+            width: appWidth * 0.25
             height: parent.height
             color: "#cccccc"
 
@@ -34,6 +45,7 @@ Window {
                     delegate: Component {
                         Rectangle {
                             anchors.horizontalCenter: parent.horizontalCenter
+                            visible: client && modelData.id !== client.get_current_user_id()
                             width: parent.width - 10
                             height: 52
                             color: "transparent"
@@ -76,7 +88,7 @@ Window {
                 left: listRectId.right
                 top: parent.top
             }
-            width: 660
+            width: appWidth * 0.75
             height: parent.height
             color: "#333333"
             ScrollView {
@@ -106,7 +118,7 @@ Window {
                                 id: messageContentId
                                 text: modelData.content
                                 color: "white"
-                                anchors.right: modelData.sender_id === client.get_current_user_id() ? parent.right : undefined
+                                anchors.right: client && modelData.sender_id === client.get_current_user_id() ? parent.right : undefined
                             }
                         }
                     }
@@ -164,6 +176,7 @@ Window {
         target: client
 
         onSignInResponse: {
+            loadingId.visible = false
             if(statusCode === 200) {
                 mainViewId.visible = true;
                 signInViewId.visible = false;
