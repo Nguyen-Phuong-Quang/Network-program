@@ -52,6 +52,16 @@ void Client::readData()
         in >> type;
 
         switch(type) {
+        // Connect to server successfully
+        case 200: {
+            emit successConnection();
+            qDebug() << "Database!";
+            break;
+        }
+        case 400: {
+            qDebug() << "Database fail!";
+            break;
+        }
         // Sign in
         case 1: {
             int code;
@@ -167,6 +177,16 @@ void Client::readData()
     }
 }
 
+int Client::getTypeSelected() const
+{
+    return typeSelected;
+}
+
+QString Client::getNameSelected() const
+{
+    return nameSelected;
+}
+
 QVariantList Client::getGroupListVariant()
 {
     return groupListVariant;
@@ -197,13 +217,21 @@ void Client::signIn(QString username, QString password) {
 
 }
 
-void Client::switchChat(int type ,int target_Id) {
+void Client::switchChat(int type ,int target_id, QString chatName) {
+    typeSelected = type;
+
+    if(type == 1) {
+        nameSelected = chatName + " (ID: " + QString::number(target_id) + ")";
+    } else {
+        nameSelected = chatName;
+    }
+
     // Send data to the server
     QDataStream out(socket);
 
     out << 2;
     out << type;
-    out << target_Id;
+    out << target_id;
     socket->flush();
 }
 
@@ -229,5 +257,12 @@ void Client::createGroup(QString groupName) {
     QDataStream out(socket);
     out << 4;
     out << groupName;
+    socket->flush();
+}
+
+void Client::requestJoinGroup(int groupId) {
+    QDataStream out(socket);
+    out << 5;
+    out << groupId;
     socket->flush();
 }

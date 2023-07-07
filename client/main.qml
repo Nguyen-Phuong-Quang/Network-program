@@ -239,6 +239,15 @@ Window {
                     rightMargin: 30
                 }
                 text: "Request"
+                onClicked: {
+                    if(!joinGroupInputId.text) {
+                        errorJoinGroupTextId.text = "Please enter group ID!"
+                    } else if(!parseInt(joinGroupInputId.text)) {
+                        errorJoinGroupTextId.text = "Group ID just contains digit!"
+                    } else {
+                        client.requestJoinGroup(parseInt(joinGroupInputId.text));
+                    }
+                }
             }
 
             Button {
@@ -259,7 +268,7 @@ Window {
     LoadingComponent {
         id: loadingId
         anchors.centerIn: parent
-        visible: false
+        visible: true
     }
 
     Rectangle {
@@ -332,7 +341,7 @@ Window {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        client.switchChat(0, modelData.id)
+                                        client.switchChat(0, modelData.id, modelData.name)
                                     }
                                 }
                             }
@@ -448,6 +457,7 @@ Window {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
+                                        client.switchChat(1, modelData.id, modelData.name)
                                     }
                                 }
                             }
@@ -491,7 +501,7 @@ Window {
                     id: chatNameTextId
                     leftPadding: 10
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Demo"
+                    text: ""
                     font.pointSize: 16
                     color: "white"
                 }
@@ -616,7 +626,7 @@ Window {
     Rectangle {
         id: signInViewId
         anchors.fill: parent
-        visible: true
+        visible: false
         SignIn{
             id: signInId
         }
@@ -624,6 +634,11 @@ Window {
 
     Connections {
         target: client
+
+        onSuccessConnection: {
+            signInViewId.visible = true;
+            loadingId.visible = false;
+        }
 
         onSignInResponse: {
             loadingId.visible = false
@@ -639,6 +654,8 @@ Window {
         }
 
         onRender: {
+            chatNameTextId.text = client.getNameSelected();
+            leftGroupBtnId.visible = client.getTypeSelected() === 1;
             userListId.model = client.getUserListVariant()
             groupListId.model = client.getGroupListVariant()
         }

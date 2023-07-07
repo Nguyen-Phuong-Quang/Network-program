@@ -12,22 +12,6 @@
 int main()
 {
     QMutex mutex;
-    QMutex db_mutex;
-
-    // Create and open the database connection
-    QSqlDatabase database = QSqlDatabase::addDatabase("QPSQL");
-    database.setHostName("chat-app.c6aoubm3unwy.us-east-1.rds.amazonaws.com");
-    database.setPort(5432);
-    database.setDatabaseName("chat-app");
-    database.setUserName("postgres");
-    database.setPassword("Quang251209");
-
-    if (!database.open()) {
-        qDebug() << "Failed to connect to database:" << database.lastError().text();
-        return 1;
-    } else {
-        qDebug() << "Database connected!";
-    }
 
     QList<User> userList;
 
@@ -39,7 +23,23 @@ int main()
         if (server.waitForNewConnection()) {
             QTcpSocket* clientSocket = server.nextPendingConnection();
 
-            ClientThread* thread = new ClientThread(clientSocket->socketDescriptor(), database, db_mutex);
+            QSqlDatabase database = QSqlDatabase::addDatabase("QPSQL");
+            database.setHostName("chat-app.c6aoubm3unwy.us-east-1.rds.amazonaws.com");
+            database.setPort(5432);
+            database.setDatabaseName("chat-app");
+            database.setUserName("postgres");
+            database.setPassword("Quang251209");
+
+            QDataStream stream(clientSocket);
+            if (!database.open()) {
+                qDebug() << "Failed to connect to database:" << database.lastError().text();
+                stream << 400;
+            } else {
+                stream << 200;
+                //                qDebug() << "Database connected!";
+            }
+            clientSocket->flush();
+            ClientThread* thread = new ClientThread(clientSocket->socketDescriptor(), database);
 
             // Handle online users
             QObject::connect(thread, &ClientThread::addUserToOnlineList, [&](int id, QString name) {
@@ -88,13 +88,9 @@ int main()
                 query.prepare("select P.group_id, group_name from groups G inner join group_participants P on G.group_id = P.group_id where user_id = :id");
                 query.bindValue(":id", id);
 
-
-                db_mutex.lock();
-
                 if (!query.exec()) {
                     qDebug() << "Query execution failed!";
                 }
-                db_mutex.unlock();
 
                 // Code for client
                 stream << 5;
@@ -123,7 +119,7 @@ int main()
             });
 
             // Handle send message
-            QObject::connect(thread, &ClientThread::sendMessage, [&](int current_id,QString name, QString message) {
+            QObject::connect(thread, &ClientThread::sendMessage, [&](int current_id, QString name, QString message) {
                 int type = -1;
                 int target_id = -1;
 
@@ -163,11 +159,11 @@ int main()
                     query.bindValue(":senderId", current_id);
                     query.bindValue(":receiverId", target_id);
                     query.bindValue(":message", message);
-                    db_mutex.lock();
+
                     if (!query.exec()) {
                         qDebug() << "Query execution failed!";
                     }
-                    db_mutex.unlock();
+
                 }
 
 

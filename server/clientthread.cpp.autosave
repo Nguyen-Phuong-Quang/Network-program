@@ -200,6 +200,7 @@ void ClientThread::run()
         }
             // -----------------------------------------------------------------
             // Join group
+        
         case 5: {
             int groupId;
             stream >> groupId;

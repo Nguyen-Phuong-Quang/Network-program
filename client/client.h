@@ -21,14 +21,18 @@ public slots:
     QVariantList getUserListVariant();
     QVariantList getGroupListVariant();
     QVariantList getChatVariant() const;
+    QString getNameSelected() const;
+    int getTypeSelected() const;
 
     int get_current_user_id();
     void signIn(QString username, QString password);
-    void switchChat(int type, int target_id);
+    void switchChat(int type, int target_id, QString chatName);
     void sendMessage(QString message);
     void createGroup(QString groupName);
+    void requestJoinGroup(int groupId);
 
 signals:
+    void successConnection();
     void signInResponse(int statusCode);
     void createGroupResponse(int code);
     void messageReceived(QString message);
@@ -50,6 +54,8 @@ private:
 
     QTcpSocket* socket;
     QThread receiveThread;
+    QString nameSelected;
+    int typeSelected;
 };
 
 #endif // CLIENT_H

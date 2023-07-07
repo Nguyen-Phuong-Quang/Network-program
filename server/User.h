@@ -10,6 +10,7 @@ struct User {
     QTcpSocket* socket;
     int type;
     int target_id;
+//    bool sign_in;
 };
 
 #endif // USER_H

@@ -22,7 +22,7 @@ class ClientThread : public QThread
     Q_OBJECT
 
 public:
-    explicit ClientThread(qintptr socketDescriptor, QSqlDatabase& database, QMutex& db_mutex, QObject *parent = nullptr);
+    explicit ClientThread(qintptr socketDescriptor,QSqlDatabase& database, QObject *parent = nullptr);
     void renderMessagesToClient(const QList<Message>& myStructArray, QTcpSocket* socket);
 
 protected:
@@ -43,7 +43,6 @@ private slots:
 private:
     qintptr socketDescriptor;
     QSqlDatabase& database;
-    QMutex& db_mutex;
     int currentUserId = -1;
 };
 
