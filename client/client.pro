@@ -31,6 +31,6 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 HEADERS += \
-    SingleMessage.h \
+    Message.h \
     client.h \
     user.h

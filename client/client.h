@@ -8,7 +8,7 @@
 #include <QTcpSocket>
 #include <QThread>
 #include <QDataStream>
-#include "SingleMessage.h"
+#include "Message.h"
 
 class Client : public QObject
 {
@@ -19,28 +19,33 @@ public:
 
 public slots:
     QVariantList getUserListVariant();
+    QVariantList getGroupListVariant();
+    QVariantList getChatVariant() const;
+
     int get_current_user_id();
     void signIn(QString username, QString password);
     void switchChat(int type, int target_id);
     void sendMessage(QString message);
-    QVariantList getChatVariant() const;
+    void createGroup(QString groupName);
 
 signals:
     void signInResponse(int statusCode);
+    void createGroupResponse(int code);
     void messageReceived(QString message);
     void render();
-    void switchSingleChatResponse();
     void renderChat();
+    void switchSingleChatResponse();
 
 private slots:
     void readData();
 
 private:
     int currentUserId;
-    QString username;
-    QList<User> userList;
-//    QList<SingleMessage> chat;
+    QString name;
+
     QVariantList userListVariant;
+    QVariantList groupListVariant;
+
     QVariantList chatVariant;
 
     QTcpSocket* socket;

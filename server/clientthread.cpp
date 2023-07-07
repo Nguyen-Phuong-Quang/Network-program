@@ -2,26 +2,7 @@
 
 ClientThread::ClientThread(qintptr socketDescriptor, QSqlDatabase& database, QMutex& db_mutex, QObject *parent) : QThread(parent), socketDescriptor(socketDescriptor), database(database), db_mutex(db_mutex) {}
 
-void ClientThread::sendArrayToClient(const QList<User>& myStructArray, QTcpSocket* socket)
-{
-    QByteArray dataArray;
-    QDataStream stream(&dataArray, QIODevice::WriteOnly);
-    // Serialize the array size
-    quint32 arraySize = static_cast<quint32>(myStructArray.size());
-    stream << arraySize;
-
-    // Serialize each struct in the array
-    for (const User& myStruct : myStructArray) {
-        stream << myStruct.id;
-        stream << myStruct.name;
-    }
-
-    // Send the serialized array to the client
-    socket->write(dataArray);
-    socket->flush();
-}
-
-void ClientThread::renderMessagesToClient(const QList<SingleMessage>& myStructArray, QTcpSocket* socket)
+void ClientThread::renderMessagesToClient(const QList<Message>& myStructArray, QTcpSocket* socket)
 {
     QByteArray dataArray;
     QDataStream stream(&dataArray, QIODevice::WriteOnly);
@@ -31,8 +12,9 @@ void ClientThread::renderMessagesToClient(const QList<SingleMessage>& myStructAr
     stream << arraySize;
 
     // Serialize each struct in the array
-    for (const SingleMessage& myStruct : myStructArray) {
+    for (const Message& myStruct : myStructArray) {
         stream << myStruct.sender_id;
+        stream << myStruct.name;
         stream << myStruct.content;
     }
 
@@ -61,6 +43,7 @@ void ClientThread::run()
         // Client disconnect
         case 0: {
             emit userDisconnected(currentUserId);
+            emit renderUsersToClients();
             break;
         }
             // -----------------------------------------------------------------
@@ -92,6 +75,7 @@ void ClientThread::run()
             if(!query.next()) {
                 // No user found
                 stream << 404;
+                socket.flush();
                 break;
             }
 
@@ -100,6 +84,7 @@ void ClientThread::run()
             if(password != myStruct.password) {
                 // Wrong creadential
                 stream << 401;
+                socket.flush();
                 break;
             }
 
@@ -114,13 +99,15 @@ void ClientThread::run()
             socket.flush();
 
             emit addUserToOnlineList(query.value("user_id").toInt(), query.value("name").toString());
+            emit renderUsersToClients();
+            emit renderGroupsToClients(query.value("user_id").toInt());
             break;
         }
 
             // -----------------------------------------------------------------
             // Switch chat
         case 2: {
-            QList<SingleMessage> messageList;
+            QList<Message> messageList;
             int type;
             int targetId;
             stream >> type;
@@ -128,7 +115,7 @@ void ClientThread::run()
 
             QSqlQuery query(database);
 
-            query.prepare("select * from direct_msg where (sender_id = :currentId and receiver_id = :targetId) or (sender_id = :targetId and receiver_id = :currentId) order by created_time");
+            query.prepare("select DM.sender_id, DM.content, U.name from direct_msg DM inner join users U on DM.sender_id = U.user_id where (DM.sender_id = :currentId and DM.receiver_id = :targetId) or (DM.sender_id = :targetId and DM.receiver_id = :currentId) order by created_time");
             query.bindValue(":currentId", currentUserId);
             query.bindValue(":targetId", targetId);
 
@@ -139,8 +126,9 @@ void ClientThread::run()
             db_mutex.unlock();
 
             while(query.next()) {
-                SingleMessage message;
+                Message message;
                 message.sender_id = query.value("sender_id").toInt();
+                message.name = query.value("name").toString();
                 message.content = query.value("content").toString();
                 messageList.append(message);
             }
@@ -155,13 +143,57 @@ void ClientThread::run()
             // -----------------------------------------------------------------
             // Send message
         case 3: {
-            QString message;
+            QString name, message;
+            stream >> name;
             stream >> message;
-            emit sendMessage(currentUserId, message);
+            emit sendMessage(currentUserId, name, message);
+            break;
+        }
+
+            // -----------------------------------------------------------------
+            // Create group
+        case 4: {
+            QString groupName;
+            stream >> groupName;
+
+            // Execute a query
+            QSqlQuery query(database);
+            query.prepare("SELECT * FROM groups where group_name = :groupName");
+            query.bindValue(":groupName", groupName);
+
+            db_mutex.lock();
+            if (!query.exec()) {
+                qDebug() << "Query execution failed!";
+            }
+            db_mutex.unlock();
+
+            stream << 6;
+
+            if(query.size() > 0) {
+                stream << 409;
+                socket.flush();
+                break;
+            }
+            query.prepare("insert into groups (owner_id, group_name) values (:ownerId, :groupName)");
+            query.bindValue(":ownerId", currentUserId);
+            query.bindValue(":groupName", groupName);
+
+            db_mutex.lock();
+            if (!query.exec()) {
+                qDebug() << "Query execution failed!";
+            }
+            db_mutex.unlock();
+
+            qDebug() << "User" << currentUserId << "group " << groupName;
+
+            stream << 200;
+            socket.flush();
+
+            emit renderGroupsToClients(currentUserId);
+
             break;
         }
         }
-
     }
 
     // Clean up

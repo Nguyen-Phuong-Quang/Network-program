@@ -2,9 +2,10 @@
 #define SINGLEMESSAGE_H
 #include<QString>
 
-struct SingleMessage {
+struct Message {
     int sender_id;
     QString content;
+    QString name;
 };
 
 #endif // SINGLEMESSAGE_H

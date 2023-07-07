@@ -13,7 +13,7 @@
 #include <QMutex>
 
 #include <iostream>
-#include "SingleMessage.h"
+#include "Message.h"
 #include "User.h"
 #include "SignIn.h"
 
@@ -23,8 +23,7 @@ class ClientThread : public QThread
 
 public:
     explicit ClientThread(qintptr socketDescriptor, QSqlDatabase& database, QMutex& db_mutex, QObject *parent = nullptr);
-    void sendArrayToClient(const QList<User>& myStructArray, QTcpSocket* socket);
-    void renderMessagesToClient(const QList<SingleMessage>& myStructArray, QTcpSocket* socket);
+    void renderMessagesToClient(const QList<Message>& myStructArray, QTcpSocket* socket);
 
 protected:
     void run();
@@ -33,8 +32,10 @@ signals:
     void error(QAbstractSocket::SocketError socketError);
     void switchChat(int type,int current_id, int target_id);
     void addUserToOnlineList(int id, QString name);
-    void sendMessage(int current_id, QString message);
+    void sendMessage(int current_id, QString name, QString message);
     void userDisconnected(int id);
+    void renderUsersToClients();
+    void renderGroupsToClients(int id);
 
 private slots:
     void handleDisconnected();

@@ -50,5 +50,18 @@ create table join_group_requests (
 		references users(user_id)
 );
 
+CREATE OR REPLACE FUNCTION insert_group_participants_function()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO group_participants (group_id, user_id)
+    VALUES (NEW.group_id, NEW.owner_id);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER insert_group_participants_trigger
+AFTER INSERT ON groups
+FOR EACH ROW
+EXECUTE FUNCTION insert_group_participants_function();
 
 

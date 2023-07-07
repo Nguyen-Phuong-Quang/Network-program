@@ -4,6 +4,8 @@
         <file>SignIn.qml</file>
         <file>LoadingComponent.qml</file>
         <file>loading.svg</file>
+        <file>find.svg</file>
+        <file>leftGroup.png</file>
     </qresource>
     <qresource prefix="/image"/>
 </RCC>

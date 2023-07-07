@@ -2,7 +2,6 @@
 #include <QDebug>
 #include <QDataStream>
 
-
 Client::Client(QObject *parent) : QObject(parent)
 {
     // Create the socket
@@ -61,8 +60,8 @@ void Client::readData()
             // If success
             if(code == 200) {
                 in >> currentUserId;
-                in >> username;
-                qDebug() << currentUserId << " " << username << "Sign in";
+                in >> name;
+//                qDebug() << currentUserId << " " << name << "Sign in";
 
             }
             emit signInResponse(code);
@@ -93,7 +92,6 @@ void Client::readData()
             }
             break;
         }
-
             // Switch message
         case 3: {
             int code;
@@ -110,11 +108,13 @@ void Client::readData()
 
                 // Deserialize each struct in the array
                 for (quint32 i = 0; i < arraySize; ++i) {
-                    SingleMessage message;
+                    Message message;
                     stream >> message.sender_id;
+                    stream >> message.name;
                     stream >> message.content;
                     QVariantMap messageMap;
                     messageMap["sender_id"] = message.sender_id;
+                    messageMap["name"] = message.name;
                     messageMap["content"] = message.content;
                     chatVariant.append(messageMap);
                 }
@@ -122,23 +122,54 @@ void Client::readData()
             emit renderChat();
             break;
         }
-
+            // Send message
         case 4: {
-            SingleMessage message;
+            Message message;
             in >> message.sender_id;
+            in >> message.name;
             in >> message.content;
 
             QVariantMap messageMap;
             messageMap["sender_id"] = message.sender_id;
+            messageMap["name"] = message.name;
             messageMap["content"] = message.content;
             chatVariant.append(messageMap);
             emit renderChat();
             break;
         }
+            // Groups
+        case 5: {
+            groupListVariant.clear();
+            int size;
+            in >> size;
+            for(int i = 0; i < size; ++i) {
+                int groupId;
+                QString groupName;
+                in >> groupId;
+                in >> groupName;
+                QVariantMap data;
+                data["id"] = groupId;
+                data["name"] = groupName;
+                groupListVariant.append(data);
+            }
+            break;
+
+        }
+            // Create groups response
+        case 6: {
+            int code;
+            in >> code;
+            emit createGroupResponse(code);
+        }
         }
 
         emit render();
     }
+}
+
+QVariantList Client::getGroupListVariant()
+{
+    return groupListVariant;
 }
 
 QVariantList Client::getChatVariant() const
@@ -180,6 +211,7 @@ void Client::sendMessage(QString message) {
 
     QVariantMap messageMap;
     messageMap["sender_id"] = currentUserId;
+    messageMap["name"] = name;
     messageMap["content"] = message;
     chatVariant.append(messageMap);
 
@@ -188,8 +220,14 @@ void Client::sendMessage(QString message) {
     // Send data to the server
     QDataStream out(socket);
     out << 3;
+    out << name;
     out << message;
     socket->flush();
 }
 
-
+void Client::createGroup(QString groupName) {
+    QDataStream out(socket);
+    out << 4;
+    out << groupName;
+    socket->flush();
+}
