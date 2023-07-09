@@ -19,7 +19,7 @@ Rectangle {
             id: rotationAnimation
             target: loadingImage
             property: "rotation"
-            duration: 1000  // Duration of one complete rotation in milliseconds
+            duration: 3000  // Duration of one complete rotation in milliseconds
             from: 0
             to: 360
             loops: Animation.Infinite  // Infinite loop for continuous rotation

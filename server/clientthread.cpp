@@ -7,6 +7,7 @@ void ClientThread::renderMessagesToClient(const QList<Message>& myStructArray, Q
     QByteArray dataArray;
     QDataStream stream(&dataArray, QIODevice::WriteOnly);
 
+    stream << 3;
     // Serialize the array size
     quint32 arraySize = static_cast<quint32>(myStructArray.size());
     stream << arraySize;
@@ -19,13 +20,17 @@ void ClientThread::renderMessagesToClient(const QList<Message>& myStructArray, Q
     }
 
     // Send the serialized array to the client
-    socket->write(dataArray);
-    socket->flush();
+    sendDataToClient(dataArray, socket);
     //    return;
 }
 
 void ClientThread::run()
 {
+    // Get the thread ID
+    Qt::HANDLE threadId = this->currentThreadId();
+    qDebug() << "Thread ID:" << threadId;
+
+
     QTcpSocket socket;
     if (!socket.setSocketDescriptor(socketDescriptor)) {
         emit error(socket.error());
@@ -35,8 +40,9 @@ void ClientThread::run()
     connect(&socket, &QTcpSocket::disconnected, this, &ClientThread::handleDisconnected);
 
     while (socket.waitForReadyRead()) {
+        QByteArray data = socket.readAll();
         int code;
-        QDataStream stream(&socket);
+        QDataStream stream(data);
         stream >> code;
 
         switch (code) {
@@ -50,14 +56,9 @@ void ClientThread::run()
             // -----------------------------------------------------------------
             //Sign in
         case 1: {
-            // Read the data from the socket
-            QByteArray data = socket.readAll();
-
-            // Deserialize the data into the struct
-            QDataStream dataStream(data);
             SignIn myStruct;
-            dataStream >> myStruct.username;
-            dataStream >> myStruct.password;
+            stream >> myStruct.username;
+            stream >> myStruct.password;
 
             // Execute a query
             QSqlQuery query(database);
@@ -67,14 +68,16 @@ void ClientThread::run()
             if (!query.exec()) {
                 qDebug() << "Query execution failed!";
             }
+            QByteArray data;
+            QDataStream out(&data, QIODevice::WriteOnly);
 
-            // type
-            stream << 1;
+            out << 1;
 
             if(!query.next()) {
                 // No user found
-                stream << 404;
-                socket.flush();
+                out << 404;
+                sendDataToClient(data, &socket);
+
                 break;
             }
 
@@ -82,27 +85,29 @@ void ClientThread::run()
 
             if(password != myStruct.password) {
                 // Wrong creadential
-                stream << 401;
-                socket.flush();
+                out << 401;
+                sendDataToClient(data, &socket);
+
                 break;
             }
 
             // status
-            stream << 200;
+            out << 200;
 
             currentUserId = query.value("user_id").toInt();
 
             // user log in
-            stream << query.value("user_id").toInt();
-            stream << query.value("name").toString();
-            socket.flush();
+            out << query.value("user_id").toInt();
+            out << query.value("name").toString();
+            sendDataToClient(data, &socket);
 
             emit addUserToOnlineList(query.value("user_id").toInt(), query.value("name").toString());
+
             emit renderUsersToClients();
+
             emit renderGroupsToClients(query.value("user_id").toInt());
             break;
         }
-
             // -----------------------------------------------------------------
             // Switch chat
         case 2: {
@@ -113,6 +118,7 @@ void ClientThread::run()
             stream >> type;
             stream >> targetId;
 
+
             QSqlQuery query(database);
 
             if(type == 0) {
@@ -120,15 +126,13 @@ void ClientThread::run()
                 query.bindValue(":currentId", currentUserId);
                 query.bindValue(":targetId", targetId);
             } else if(type == 1) {
-                query.prepare("select M.user_id as sender_id, content, U.name from (select GP.user_id, content from (select * from groups where group_id = :targer_id) G inner join group_participants GP on GP.group_id = G.group_id inner join group_msg GM on GM.participant_id = GP.participant_id order by GM.created_time) M inner join users U on M.user_id = U.user_id");
-                query.bindValue(":targetId", targetId);
+                query.prepare(" select U.user_id sender_id, U.name, content from group_msg GM inner join group_participants GP on GM.participant_id = GP.participant_id inner join users U on U.user_id = GP.user_id where GP.group_id = :groupId order by created_time");
+                query.bindValue(":groupId", targetId);
             }
-
 
             if (!query.exec()) {
                 qDebug() << "Query execution failed!";
             }
-
 
             while(query.next()) {
                 Message message;
@@ -138,13 +142,10 @@ void ClientThread::run()
                 messageList.append(message);
             }
 
-            stream << 3;
-            stream << 200;
             renderMessagesToClient(messageList, &socket);
             emit switchChat(type, currentUserId, targetId);
             break;
         }
-
             // -----------------------------------------------------------------
             // Send message
         case 3: {
@@ -154,7 +155,6 @@ void ClientThread::run()
             emit sendMessage(currentUserId, name, message);
             break;
         }
-
             // -----------------------------------------------------------------
             // Create group
         case 4: {
@@ -171,16 +171,17 @@ void ClientThread::run()
                 qDebug() << "Query execution failed!";
             }
 
+            QByteArray data;
+            QDataStream out(&data, QIODevice::WriteOnly);
+            out << 6;
 
-            stream << 6;
 
             if(query.size() > 0) {
-                stream << 409;
-                socket.flush();
+                out << 409;
+                sendDataToClient(data, &socket);
                 break;
             }
-            query.prepare("insert into groups (owner_id, group_name) values (:ownerId, :groupName)");
-            query.bindValue(":ownerId", currentUserId);
+            query.prepare("insert into groups (group_name) values (:ownerId, :groupName)");
             query.bindValue(":groupName", groupName);
 
 
@@ -190,9 +191,9 @@ void ClientThread::run()
 
 
             qDebug() << "User" << currentUserId << "group " << groupName;
+            out << 200;
 
-            stream << 200;
-            socket.flush();
+            sendDataToClient(data, &socket);
 
             emit renderGroupsToClients(currentUserId);
 
@@ -203,12 +204,153 @@ void ClientThread::run()
         case 5: {
             int groupId;
             stream >> groupId;
+
+            QByteArray data;
+            QDataStream out(&data, QIODevice::WriteOnly);
+            out << 7;
+
+            // Execute a query
+            QSqlQuery query(database);
+            query.prepare("SELECT * FROM groups where group_id = :groupId");
+            query.bindValue(":groupId", groupId);
+
+            if (!query.exec()) {
+                qDebug() << "Query select execution failed!";
+            }
+
+            if(query.size() < 1) {
+                out << 404;
+                sendDataToClient(data, &socket);
+                break;
+            }
+
+            query.prepare("insert into join_group_requests (user_id, group_id) values (:userId, :groupId)");
+            query.bindValue(":userId", currentUserId);
+            query.bindValue(":groupId", groupId);
+
+
+            if (!query.exec()) {
+                qDebug() << "Query insert execution failed!";
+            }
+            out << 200;
+            sendDataToClient(data, &socket);
+            break;
+        }
+            // -----------------------------------------------------------------
+            // Get pending requests
+        case 6: {
+            int groupId;
+            stream >> groupId;
+            emit renderPendingRequests(groupId);
+            break;
+        }
+            // -----------------------------------------------------------------
+            // Handle accept or reject user
+        case 7: {
+            int type; // 1: Accept, 0: Reject
+            int groupId;
+            int userId;
+            stream >> type;
+            stream >> groupId;
+            stream >> userId;
+
+            QSqlQuery query(database);
+            query.prepare("delete from join_group_requests where group_id = :groupId and user_id = :userId");
+            query.bindValue(":groupId", groupId);
+            query.bindValue(":userId", userId);
+
+            if (!query.exec()) {
+                qDebug() << "Query execution failed!";
+            }
+
+            if(type == 1) {
+                query.prepare("select participant_id where group_id = :groupId and user_id = :userId");
+                query.bindValue(":groupId", groupId);
+                query.bindValue(":userId", userId);
+
+                if (!query.exec()) {
+                    qDebug() << "Query execution failed!";
+                }
+
+                if(query.next()) {
+                    query.prepare("update group_participants set avtive = 1 where group_id = :groupId and user_id = :userId");
+                    query.bindValue(":groupId", groupId);
+                    query.bindValue(":userId", userId);
+                } else {
+                    query.prepare("insert into group_participants (group_id, user_id, active) values (:groupId, :userId, 1)");
+                    query.bindValue(":groupId", groupId);
+                    query.bindValue(":userId", userId);
+                }
+
+                if (!query.exec()) {
+                    qDebug() << "Query execution failed!";
+                }
+
+                emit renderGroupToUserAccepted(userId);
+            }
+
+            emit renderPendingRequests(groupId);
+            break;
+        }
+            // -----------------------------------------------------------------
+            // Left group
+        case 8: {
+            int userId;
+            int groupId;
+            stream >> userId;
+            stream >> groupId;
+
+            QSqlQuery query(database);
+            query.prepare("update group_participants set active = 0 where group_id = :groupId and user_id = :userId");
+            query.bindValue(":groupId", groupId);
+            query.bindValue(":userId", userId);
+
+            if (!query.exec()) {
+                qDebug() << "Query execution failed!";
+            }
+
+            QByteArray data;
+            QDataStream out(&data, QIODevice::WriteOnly);
+
+            out << 9;
+
+            sendDataToClient(data, &socket);
+            emit renderGroupsToClients(userId);
+            break;
+
         }
         }
     }
 
     // Clean up
     socket.disconnectFromHost();
+}
+
+void ClientThread::sendDataToClient(const QByteArray& data, QTcpSocket* socket)
+{
+    while (socket->bytesToWrite() > 0) {
+        socket->waitForBytesWritten();
+    }
+
+    QDataStream out(socket);
+    out.writeRawData(data.data(), data.size());
+    socket->flush();
+
+    while (!socket->waitForReadyRead()) {
+        // Optionally add a timeout mechanism or handle other tasks while waiting
+    }
+
+    // Read the data sent by the client
+    QByteArray clientData = socket->readAll();
+    QDataStream clientStream(clientData);
+
+    // Process the received data from the client
+    int clientResponseCode;
+    clientStream >> clientResponseCode;
+
+    while (clientResponseCode != 200) {
+
+    }
 }
 
 void ClientThread::handleDisconnected()
@@ -219,3 +361,4 @@ void ClientThread::handleDisconnected()
         quit();  // Terminate the thread event loop
     }
 }
+

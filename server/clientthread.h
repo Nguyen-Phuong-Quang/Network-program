@@ -24,6 +24,7 @@ class ClientThread : public QThread
 public:
     explicit ClientThread(qintptr socketDescriptor,QSqlDatabase& database, QObject *parent = nullptr);
     void renderMessagesToClient(const QList<Message>& myStructArray, QTcpSocket* socket);
+    void sendDataToClient(const QByteArray& data, QTcpSocket* socket);
 
 protected:
     void run();
@@ -36,6 +37,8 @@ signals:
     void userDisconnected(int id);
     void renderUsersToClients();
     void renderGroupsToClients(int id);
+    void renderPendingRequests(int groupId);
+    void renderGroupToUserAccepted(int userId);
 
 private slots:
     void handleDisconnected();
@@ -44,6 +47,7 @@ private:
     qintptr socketDescriptor;
     QSqlDatabase& database;
     int currentUserId = -1;
+
 };
 
 #endif // CLIENTTHREAD_H

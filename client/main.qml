@@ -6,34 +6,12 @@ import QtGraphicalEffects 1.0
 
 Window {
     property int appWidth: 1080
+    id: windowId
     visible: true
     width: appWidth
     height: 800
     title: qsTr("Chat app")
-
-    function demoUsers () {
-        return [
-                    {
-                        id: 1,
-                        name: "Test group"
-                    }
-                ]
-    }
-
-    function demoMessage () {
-        return [
-                    {
-                        sender_id: 1,
-                        content: "Quang content",
-                        name: "Quang"
-                    },
-                    {
-                        sender_id: 2,
-                        content: "Hai content",
-                        name: "Hai"
-                    }
-                ]
-    }
+    color: "#333333"
 
     function openFindGroupDialog() {
         joinGroupDialogId.visible = true
@@ -55,6 +33,17 @@ Window {
         addGroupDialogId.visible = false
         mainViewId.opacity = 1
         addGroupInputId.text = ""
+    }
+
+    function openCheckPendingRequest() {
+        requestsPendingDialogId.visible = true;
+        mainViewId.opacity = 0.8
+        client.getPendingRequests();
+    }
+
+    function hideCheckPendingRequest() {
+        requestsPendingDialogId.visible = false;
+        mainViewId.opacity = 1
     }
 
     onWidthChanged: {
@@ -265,6 +254,165 @@ Window {
         }
     }
 
+    // Dialog request pending
+    Rectangle {
+        id: requestsPendingDialogId
+        visible: false
+        z: 10
+        anchors.fill: parent
+        color: "transparent"
+        MouseArea {
+            anchors.fill: parent
+            preventStealing: true // Prevent interaction from propagating to underlying items
+        }
+
+        Rectangle {
+            z: 999
+            color: "#333333"
+            anchors.centerIn: parent
+            width: 400
+            height: 600
+            radius: 16
+            border.width: 1
+            border.color: "white"
+
+            Text {
+                id: requestPedingGroupTextId
+                padding: 10
+                text: "Requests"
+                anchors.horizontalCenter: parent.horizontalCenter
+                color: "white"
+                font.pointSize: 14
+            }
+
+
+            Rectangle {
+                id: closeCheckPendingRequestId
+                color: "transparent"
+                anchors.verticalCenter: requestPedingGroupTextId.verticalCenter
+                width: checkPendingRequestXId.implicitWidth
+                height:checkPendingRequestXId.implicitHeight
+                anchors.right: parent.right
+                anchors.rightMargin: 10
+                Text {
+                    id: checkPendingRequestXId
+                    text: "x"
+                    color: "red"
+                    font.pointSize: 20
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            hideCheckPendingRequest()
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                anchors.top: requestPedingGroupTextId.bottom
+                width: parent.width
+                height: 1
+                color: "#cccccc"
+            }
+
+            ScrollView {
+                id: requestScrollId
+                anchors.top: requestPedingGroupTextId.bottom
+                width: parent.width
+                height: parent.height - requestPedingGroupTextId.implicitHeight
+                ScrollBar.vertical.policy: ScrollBar.AlwaysOff  // Hide the vertical scroll bar
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff  // Hide the horizontal scroll bar
+                topPadding: 1
+                ListView {
+                    id: requestListId
+                    anchors.top: parent.top
+                    width: parent.width
+                    height: contentHeight
+                    clip: true
+                    model: []
+                    delegate: Component {
+                        Rectangle {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width - 16
+                            height: 52
+                            color: "transparent"
+                            Rectangle {
+                                id: userViewId
+                                width: parent.width
+                                height: 44
+                                anchors.centerIn: parent
+                                radius: 10
+                                Text {
+                                    leftPadding: 10
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: modelData.name
+                                    font.pointSize: 12
+                                }
+
+                                Rectangle {
+                                    id: rejectRectId
+                                    color: "red"
+                                    width: rejectTextId.implicitWidth - 10
+                                    height:rejectTextId.implicitHeight - 10
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 8
+                                    radius: 8
+                                    Text {
+                                        id: rejectTextId
+                                        padding: 10
+                                        anchors.centerIn: parent
+                                        text: qsTr("Reject")
+                                        color: "white"
+                                        font.pointSize: 12
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            client.acceptOrRejectUser(0, modelData.id);
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: acceptRectId
+                                    color: "green"
+                                    width: acceptTextId.implicitWidth - 10
+                                    height:acceptTextId.implicitHeight - 10
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.right: rejectRectId.left
+                                    anchors.rightMargin: 8
+                                    radius: 8
+                                    Text {
+                                        id: acceptTextId
+                                        padding: 10
+                                        anchors.centerIn: parent
+                                        text: qsTr("Accept")
+                                        color: "white"
+                                        font.pointSize: 12
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            client.acceptOrRejectUser(1, modelData.id);
+                                        }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                anchors.top: userViewId.bottom
+                                height: 10
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     LoadingComponent {
         id: loadingId
         anchors.centerIn: parent
@@ -275,6 +423,7 @@ Window {
         id: mainViewId
         anchors.fill: parent
         visible: false
+        color: "#333333"
         opacity: 1
         Rectangle {
             id: listRectId
@@ -475,6 +624,7 @@ Window {
 
         Rectangle {
             id: chatViewRectId
+            visible: false
             anchors {
                 left: listRectId.right
                 top: parent.top
@@ -514,11 +664,30 @@ Window {
 
                 Button {
                     id: leftGroupBtnId
+                    visible: false
                     anchors.verticalCenter: parent.verticalCenter
                     height: parent.height - 10
                     width: 40
                     anchors.right: marginLeftGroupBtnId.left
                     icon.source: "./leftGroup.png"
+                    onClicked: {
+                        chatViewRectId.visible = false;
+                        client.leftGroup();
+                    }
+                }
+
+                Button {
+                    id: requestsPendingCheckBtnId
+                    visible: false
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height - 10
+                    width: 40
+                    anchors.right: leftGroupBtnId.left
+                    anchors.rightMargin: 10
+                    text: "!"
+                    onClicked: {
+                        openCheckPendingRequest()
+                    }
                 }
             }
 
@@ -537,8 +706,6 @@ Window {
                     topMargin: 10
                     clip: true // Clip the content within the ListView
                     model: ListModel {}
-
-                    //                    model: demoMessage()
 
                     onModelChanged: {
                         chatListId.contentY = chatListId.contentHeight - chatListId.height
@@ -643,6 +810,7 @@ Window {
         onSignInResponse: {
             loadingId.visible = false
             if(statusCode === 200) {
+                windowId.title = client.getName()
                 mainViewId.visible = true;
                 signInViewId.visible = false;
             } else if(statusCode === 404) {
@@ -663,6 +831,9 @@ Window {
         onRenderChat: {
             chatListId.model = client.getChatVariant()
             chatListId.contentY = chatListId.contentHeight - chatListId.height
+            leftGroupBtnId.visible = client.getTypeSelected() === 1 ? true : false
+            requestsPendingCheckBtnId.visible = client.getTypeSelected() === 1 ? true : false
+            chatViewRectId.visible = true;
         }
 
         onCreateGroupResponse: {
@@ -671,6 +842,22 @@ Window {
             } else if (code === 409) {
                 errorAddGroupTextId.text = "Group name is already used!"
             }
+        }
+
+        onJoinGroupResponse: {
+            if(code === 200) {
+                hideFindGroupDialog();
+            } else if (code === 404) {
+                errorJoinGroupTextId.text = "Group does not exist!";
+            }
+        }
+
+        onRenderRequestList: {
+            requestListId.model = client.getRequestListVariant();
+        }
+
+        onHideChatView: {
+            chatViewRectId.visible = false;
         }
     }
 

@@ -7,14 +7,9 @@ Client::Client(QObject *parent) : QObject(parent)
     // Create the socket
     socket = new QTcpSocket(this);
 
-    // Move socket to the receive thread
-    socket->moveToThread(&receiveThread);
-
     // Connect the readyRead signal to the readData slot
     connect(socket, &QTcpSocket::readyRead, this, &Client::readData);
 
-    // Start the receive thread
-    receiveThread.start();
 
     // Connect to the TCP server upon initialization
     socket->connectToHost("127.0.0.1", 12345); // Connect to server IP and port
@@ -35,148 +30,196 @@ Client::~Client()
     stream << 0;
     socket->flush();
 
-    receiveThread.quit();
-    receiveThread.wait();
     socket->disconnectFromHost();
     socket->deleteLater(); // Cleanup the socket
 }
 
 void Client::readData()
 {
-    while (socket->bytesAvailable() > 0)
-    {
+    QByteArray data = socket->readAll();
 
-        //Check type of response
-        int type;
-        QDataStream in(socket);
-        in >> type;
+    QDataStream in(&data, QIODevice::ReadOnly);
+    //Check type of response
+    int type;
+    in >> type;
 
-        switch(type) {
-        // Connect to server successfully
-        case 200: {
-            emit successConnection();
-            qDebug() << "Database!";
-            break;
-        }
-        case 400: {
-            qDebug() << "Database fail!";
-            break;
-        }
+    qDebug() << "Type" << type;
+    switch(type) {
+    // Connect to server successfully
+    case 200: {
+        emit successConnection();
+        qDebug() << "Database!";
+        break;
+    }
+    case 400: {
+        qDebug() << "Database fail!";
+        break;
+    }
         // Sign in
-        case 1: {
-            int code;
-            in >> code;
+    case 1: {
+        int code;
+        in >> code;
 
-            // If success
-            if(code == 200) {
-                in >> currentUserId;
-                in >> name;
-//                qDebug() << currentUserId << " " << name << "Sign in";
+        // If success
+        if(code == 200) {
+            in >> currentUserId;
+            in >> name;
+            //                qDebug() << currentUserId << " " << name << "Sign in";
 
-            }
-            emit signInResponse(code);
-            break;
         }
-            // Users online
-        case 2: {
-            userListVariant.clear();
-            QByteArray dataArray = socket->readAll();
-            QDataStream stream(dataArray);
 
-            // Deserialize the array size
-            quint32 arraySize;
-            stream >> arraySize;
+        responseToServerSuccess();
+        emit signInResponse(code);
+        break;
+    }
+        // Users online
+    case 2: {
+        userListVariant.clear();
+        quint32 arraySize;
+        in >> arraySize;
 
-            // Deserialize each struct in the array
-            for (quint32 i = 0; i < arraySize; ++i) {
-                User user;
-                stream >> user.id;
-                stream >> user.name;
-                if(user.id != currentUserId) {
-                    QVariantMap userMap;
-                    userMap["id"] = user.id;
-                    userMap["name"] = user.name;
-                    userListVariant.append(userMap);
-                }
-
+        // Deserialize each struct in the array
+        for (quint32 i = 0; i < arraySize; ++i) {
+            User user;
+            in >> user.id;
+            in >> user.name;
+            if(user.id != currentUserId) {
+                QVariantMap userMap;
+                userMap["id"] = user.id;
+                userMap["name"] = user.name;
+                userListVariant.append(userMap);
             }
-            break;
         }
-            // Switch message
-        case 3: {
-            int code;
-            in >> code;
-            if(code == 200) {
-                // Receive new chat data
-                chatVariant.clear();
-                QByteArray dataArray = socket->readAll();
-                QDataStream stream(dataArray);
 
-                // Deserialize the array size
-                quint32 arraySize;
-                stream >> arraySize;
+        responseToServerSuccess();
+        break;
+    }
+        // Switch message
+    case 3: {
+        // Receive new chat data
+        chatVariant.clear();
+        // Deserialize the array size
+        quint32 arraySize;
+        in >> arraySize;
 
-                // Deserialize each struct in the array
-                for (quint32 i = 0; i < arraySize; ++i) {
-                    Message message;
-                    stream >> message.sender_id;
-                    stream >> message.name;
-                    stream >> message.content;
-                    QVariantMap messageMap;
-                    messageMap["sender_id"] = message.sender_id;
-                    messageMap["name"] = message.name;
-                    messageMap["content"] = message.content;
-                    chatVariant.append(messageMap);
-                }
-            }
-            emit renderChat();
-            break;
-        }
-            // Send message
-        case 4: {
+        // Deserialize each struct in the array
+        for (quint32 i = 0; i < arraySize; ++i) {
             Message message;
             in >> message.sender_id;
             in >> message.name;
             in >> message.content;
-
             QVariantMap messageMap;
             messageMap["sender_id"] = message.sender_id;
             messageMap["name"] = message.name;
             messageMap["content"] = message.content;
             chatVariant.append(messageMap);
-            emit renderChat();
-            break;
         }
-            // Groups
-        case 5: {
-            groupListVariant.clear();
-            int size;
-            in >> size;
-            for(int i = 0; i < size; ++i) {
-                int groupId;
-                QString groupName;
-                in >> groupId;
-                in >> groupName;
-                QVariantMap data;
-                data["id"] = groupId;
-                data["name"] = groupName;
-                groupListVariant.append(data);
-            }
-            break;
-
-        }
-            // Create groups response
-        case 6: {
-            int code;
-            in >> code;
-            emit createGroupResponse(code);
-        }
-        }
-
-        emit render();
+        responseToServerSuccess();
+        emit renderChat();
+        break;
     }
+        // Send message
+    case 4: {
+        Message message;
+        in >> message.sender_id;
+        in >> message.name;
+        in >> message.content;
+
+        QVariantMap messageMap;
+        messageMap["sender_id"] = message.sender_id;
+        messageMap["name"] = message.name;
+        messageMap["content"] = message.content;
+        chatVariant.append(messageMap);
+        responseToServerSuccess();
+        emit renderChat();
+        break;
+    }
+        // Groups
+    case 5: {
+        groupListVariant.clear();
+        int size;
+        in >> size;
+        for(int i = 0; i < size; ++i) {
+            int groupId;
+            QString groupName;
+            in >> groupId;
+            in >> groupName;
+            QVariantMap data;
+            data["id"] = groupId;
+            data["name"] = groupName;
+            groupListVariant.append(data);
+        }
+        responseToServerSuccess();
+        break;
+
+    }
+        // Create groups response
+    case 6: {
+        int code;
+        in >> code;
+        responseToServerSuccess();
+        emit createGroupResponse(code);
+        break;
+    }
+        // Join group response
+    case 7: {
+        int  code;
+        in >> code;
+        responseToServerSuccess();
+        emit joinGroupResponse(code);
+        break;
+    }
+        // Get pending request response
+    case 8: {
+        requestListVariant.clear();
+        int size;
+        in >> size;
+
+        for(int i = 0; i < size; ++i) {
+            User newUser;
+            in >> newUser.id;
+            in >> newUser.name;
+            QVariantMap data;
+            data["id"] = newUser.id;
+            data["name"] = newUser.name;
+            requestListVariant.append(data);
+        }
+        responseToServerSuccess();
+        qDebug() << "Have " << size << " requests";
+        emit renderRequestList();
+        break;
+    }
+        // Left group response
+    case 9: {
+        responseToServerSuccess();
+        emit hideChatView();
+        break;
+    }
+    }
+
+    if(in.atEnd()) {
+        qDebug() << "Clear data in socket" << Qt::endl;
+    }
+
+    emit render();
 }
 
+void Client::sendDataToServer(const QByteArray& data)
+{
+    QDataStream out(socket);
+    out.writeRawData(data.data(), data.size());
+    socket->flush();
+}
+
+QString Client::getName() const
+{
+    return name;
+}
+
+QVariantList Client::getRequestListVariant() const
+{
+    return requestListVariant;
+}
 int Client::getTypeSelected() const
 {
     return typeSelected;
@@ -208,31 +251,29 @@ QVariantList Client::getUserListVariant()
 
 void Client::signIn(QString username, QString password) {
     // Send data to the server
-    QDataStream out(socket);
+    QByteArray data;
+    QDataStream stream(&data, QIODevice::WriteOnly);
 
-    out << 1;
-    out << username;
-    out << password;
-    socket->flush();
+    stream << 1 << username << password;
 
+    sendDataToServer(data);
 }
 
 void Client::switchChat(int type ,int target_id, QString chatName) {
     typeSelected = type;
-
+    targetId = target_id;
     if(type == 1) {
         nameSelected = chatName + " (ID: " + QString::number(target_id) + ")";
     } else {
         nameSelected = chatName;
     }
 
-    // Send data to the server
-    QDataStream out(socket);
+    QByteArray data;
+    QDataStream stream(&data, QIODevice::WriteOnly);
 
-    out << 2;
-    out << type;
-    out << target_id;
-    socket->flush();
+    stream << 2 << type << target_id;
+
+    sendDataToServer(data);
 }
 
 void Client::sendMessage(QString message) {
@@ -245,24 +286,66 @@ void Client::sendMessage(QString message) {
 
     emit renderChat();
 
-    // Send data to the server
-    QDataStream out(socket);
-    out << 3;
-    out << name;
-    out << message;
-    socket->flush();
+    QByteArray data;
+    QDataStream stream(&data, QIODevice::WriteOnly);
+
+    stream << 3 << name << message;
+
+    sendDataToServer(data);
 }
 
 void Client::createGroup(QString groupName) {
-    QDataStream out(socket);
-    out << 4;
-    out << groupName;
-    socket->flush();
+
+    QByteArray data;
+    QDataStream stream(&data, QIODevice::WriteOnly);
+
+    stream << 4 << groupName;
+
+    sendDataToServer(data);
 }
 
 void Client::requestJoinGroup(int groupId) {
-    QDataStream out(socket);
-    out << 5;
-    out << groupId;
-    socket->flush();
+    QByteArray data;
+    QDataStream stream(&data, QIODevice::WriteOnly);
+
+    stream << 5 << groupId;
+
+    sendDataToServer(data);
 }
+
+void Client::getPendingRequests() {
+    QByteArray data;
+    QDataStream stream(&data, QIODevice::WriteOnly);
+
+    stream << 6 << targetId;
+
+    sendDataToServer(data);
+}
+
+void Client::acceptOrRejectUser(int type, int userId) {
+
+    QByteArray data;
+    QDataStream stream(&data, QIODevice::WriteOnly);
+
+    stream << 7 << type << targetId << userId;
+
+    sendDataToServer(data);
+};
+
+void Client::leftGroup() {
+    QByteArray data;
+    QDataStream stream(&data, QIODevice::WriteOnly);
+
+    stream << 8 << currentUserId << targetId;
+
+    sendDataToServer(data);
+};
+
+void Client::responseToServerSuccess() {
+    QByteArray data;
+    QDataStream stream(&data, QIODevice::WriteOnly);
+
+    stream << 200;
+
+    sendDataToServer(data);
+};
