@@ -1,5 +1,6 @@
-#ifndef SINGLEMESSAGE_H
-#define SINGLEMESSAGE_H
+#ifndef MESSAGE_H
+#define MESSAGE_H
+
 #include<QString>
 
 struct Message {
@@ -8,4 +9,5 @@ struct Message {
     QString name;
 };
 
-#endif // SINGLEMESSAGE_H
+
+#endif // MESSAGE_H

@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QVariantList>
 #include <QIODevice>
+#include <QMutex>
 #include "user.h"
 #include <iostream>
 #include <QTcpSocket>
@@ -71,6 +72,9 @@ private:
     int targetId;
 
     void responseToServerSuccess();
+
+    QMutex mutex;
+
 };
 
 #endif // CLIENT_H

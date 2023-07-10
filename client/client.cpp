@@ -12,7 +12,7 @@ Client::Client(QObject *parent) : QObject(parent)
 
 
     // Connect to the TCP server upon initialization
-    socket->connectToHost("127.0.0.1", 12345); // Connect to server IP and port
+    socket->connectToHost("127.0.0.1", 5050); // Connect to server IP and port
     if (socket->waitForConnected())
     {
         qDebug() << "Connected to server";
@@ -35,7 +35,7 @@ Client::~Client()
 }
 
 void Client::readData()
-{
+{   mutex.lock();
     QByteArray data = socket->readAll();
 
     QDataStream in(&data, QIODevice::ReadOnly);
@@ -45,17 +45,7 @@ void Client::readData()
 
     qDebug() << "Type" << type;
     switch(type) {
-    // Connect to server successfully
-    case 200: {
-        emit successConnection();
-        qDebug() << "Database!";
-        break;
-    }
-    case 400: {
-        qDebug() << "Database fail!";
-        break;
-    }
-        // Sign in
+    // Sign in
     case 1: {
         int code;
         in >> code;
@@ -64,11 +54,8 @@ void Client::readData()
         if(code == 200) {
             in >> currentUserId;
             in >> name;
-            //                qDebug() << currentUserId << " " << name << "Sign in";
-
         }
 
-        responseToServerSuccess();
         emit signInResponse(code);
         break;
     }
@@ -90,8 +77,6 @@ void Client::readData()
                 userListVariant.append(userMap);
             }
         }
-
-        responseToServerSuccess();
         break;
     }
         // Switch message
@@ -114,7 +99,6 @@ void Client::readData()
             messageMap["content"] = message.content;
             chatVariant.append(messageMap);
         }
-        responseToServerSuccess();
         emit renderChat();
         break;
     }
@@ -130,7 +114,6 @@ void Client::readData()
         messageMap["name"] = message.name;
         messageMap["content"] = message.content;
         chatVariant.append(messageMap);
-        responseToServerSuccess();
         emit renderChat();
         break;
     }
@@ -149,7 +132,6 @@ void Client::readData()
             data["name"] = groupName;
             groupListVariant.append(data);
         }
-        responseToServerSuccess();
         break;
 
     }
@@ -157,7 +139,6 @@ void Client::readData()
     case 6: {
         int code;
         in >> code;
-        responseToServerSuccess();
         emit createGroupResponse(code);
         break;
     }
@@ -165,11 +146,9 @@ void Client::readData()
     case 7: {
         int  code;
         in >> code;
-        responseToServerSuccess();
         emit joinGroupResponse(code);
         break;
     }
-        // Get pending request response
     case 8: {
         requestListVariant.clear();
         int size;
@@ -184,14 +163,16 @@ void Client::readData()
             data["name"] = newUser.name;
             requestListVariant.append(data);
         }
-        responseToServerSuccess();
         qDebug() << "Have " << size << " requests";
         emit renderRequestList();
         break;
     }
         // Left group response
     case 9: {
-        responseToServerSuccess();
+        emit hideChatView();
+        break;
+    }
+    case 10: {
         emit hideChatView();
         break;
     }
@@ -202,13 +183,21 @@ void Client::readData()
     }
 
     emit render();
+    mutex.unlock();
+
 }
 
 void Client::sendDataToServer(const QByteArray& data)
 {
-    QDataStream out(socket);
-    out.writeRawData(data.data(), data.size());
-    socket->flush();
+
+    mutex.lock();
+    while (socket->state() != QAbstractSocket::ConnectedState) {
+    }
+
+    socket->write(data);
+    socket->waitForBytesWritten();
+    qDebug() << "Send data";
+    mutex.unlock();
 }
 
 QString Client::getName() const
@@ -342,10 +331,10 @@ void Client::leftGroup() {
 };
 
 void Client::responseToServerSuccess() {
-    QByteArray data;
-    QDataStream stream(&data, QIODevice::WriteOnly);
+    //    QByteArray data;
+    //    QDataStream stream(&data, QIODevice::WriteOnly);
 
-    stream << 200;
+    //    stream << 20205191;
 
-    sendDataToServer(data);
+    //    sendDataToServer(data);
 };

@@ -271,7 +271,7 @@ Window {
             color: "#333333"
             anchors.centerIn: parent
             width: 400
-            height: 600
+            height: windowId.height * 3/4
             radius: 16
             border.width: 1
             border.color: "white"
@@ -416,7 +416,7 @@ Window {
     LoadingComponent {
         id: loadingId
         anchors.centerIn: parent
-        visible: true
+        visible: false
     }
 
     Rectangle {
@@ -793,7 +793,7 @@ Window {
     Rectangle {
         id: signInViewId
         anchors.fill: parent
-        visible: false
+        visible: true
         SignIn{
             id: signInId
         }

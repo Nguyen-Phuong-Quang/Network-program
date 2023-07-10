@@ -1,16 +1,15 @@
-#ifndef USER_H
-#define USER_H
+#ifndef CLIENT_H
+#define CLIENT_H
 
 #include<QString>
 #include<QTcpSocket>
 
-struct User {
+struct Client {
     int id;
     QString name;
-    QTcpSocket* socket;
     int type;
     int target_id;
-//    bool sign_in;
+    QTcpSocket* socket;
 };
 
-#endif // USER_H
+#endif // CLIENT_H
