@@ -849,7 +849,10 @@ Window {
                 hideFindGroupDialog();
             } else if (code === 404) {
                 errorJoinGroupTextId.text = "Group does not exist!";
+            } else if (code === 409) {
+                errorJoinGroupTextId.text = "You are already in group!";
             }
+
         }
 
         onRenderRequestList: {

@@ -182,22 +182,18 @@ void Client::readData()
         qDebug() << "Clear data in socket" << Qt::endl;
     }
 
-    emit render();
     mutex.unlock();
 
 }
 
 void Client::sendDataToServer(const QByteArray& data)
 {
-
-    mutex.lock();
     while (socket->state() != QAbstractSocket::ConnectedState) {
     }
 
     socket->write(data);
     socket->waitForBytesWritten();
     qDebug() << "Send data";
-    mutex.unlock();
 }
 
 QString Client::getName() const
@@ -331,10 +327,10 @@ void Client::leftGroup() {
 };
 
 void Client::responseToServerSuccess() {
-    //    QByteArray data;
-    //    QDataStream stream(&data, QIODevice::WriteOnly);
+        QByteArray data;
+        QDataStream stream(&data, QIODevice::WriteOnly);
 
-    //    stream << 20205191;
+        stream << 20205191;
 
-    //    sendDataToServer(data);
+        sendDataToServer(data);
 };

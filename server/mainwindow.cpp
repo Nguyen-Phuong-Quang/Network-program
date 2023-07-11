@@ -36,10 +36,12 @@ MainWindow::~MainWindow()
 
 void MainWindow::sendDataToClient(QByteArray data, QTcpSocket *socket)
 {
+    Client client = getCurrentClient(socket);
     mutex.lock();
+
     while(socket->state()!= QAbstractSocket::ConnectedState) {
-        //        qDebug() << "Error";
     }
+
     socket->write(data);
     socket->waitForBytesWritten();
     mutex.unlock();
@@ -109,7 +111,7 @@ Client MainWindow::getCurrentClient(QTcpSocket *socket)
 void MainWindow::newConnection()
 {
     QTcpSocket *clientSocket = tcpServer->nextPendingConnection();
-    clients.append({0, "", 0, 0, clientSocket});
+    clients.append({0, "", 0, 0, clientSocket, new QMutex});
 
     connect(clientSocket, &QTcpSocket::readyRead, [this, clientSocket]() {
         receiveData(clientSocket);
@@ -127,7 +129,7 @@ void MainWindow::newConnection()
                         break;
                     }
                 }
-
+                delete clients[i].mutex;
                 clients.removeAt(i);
                 break;
             }
@@ -169,7 +171,7 @@ void MainWindow::receiveData(QTcpSocket *socket)
         if(!query.next()) {
             // No user found
             out << 404;
-            //            sendDataToClient(data, socket);
+                        sendDataToClient(data, socket);
 
             break;
         }
@@ -179,7 +181,7 @@ void MainWindow::receiveData(QTcpSocket *socket)
         if(password != myStruct.password) {
             // Wrong creadential
             out << 401;
-            //            sendDataToClient(data, socket);
+                        sendDataToClient(data, socket);
 
             break;
         }
@@ -396,6 +398,20 @@ void MainWindow::receiveData(QTcpSocket *socket)
 
         if(query.size() < 1) {
             out << 404;
+            sendDataToClient(data, socket);
+            break;
+        }
+
+        query.prepare("select P.group_id, group_name from groups G inner join group_participants P on G.group_id = P.group_id where P.group_id = :groupId and user_id = :id and active = 1");
+        query.bindValue(":id", client.id);
+        query.bindValue(":groupId", groupId);
+
+        if (!query.exec()) {
+            qDebug() << "Query execution failed!";
+        }
+
+        if(query.size() > 0) {
+            out << 409;
             sendDataToClient(data, socket);
             break;
         }
