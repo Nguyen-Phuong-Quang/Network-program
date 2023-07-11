@@ -65,6 +65,7 @@ void MainWindow::renderUsersToClients()
 
     for(Client& client: clients) {
         if(client.id > 0) {
+            qDebug() << "Send to " << client.name;
             sendDataToClient(data, client.socket);
         }
     }
@@ -82,6 +83,7 @@ void MainWindow::renderGroupToClient(int userId, QTcpSocket *socket)
 
     if (!query.exec()) {
         qDebug() << "Query execution failed!";
+        return;
     }
 
     // Code for client
@@ -111,7 +113,7 @@ Client MainWindow::getCurrentClient(QTcpSocket *socket)
 void MainWindow::newConnection()
 {
     QTcpSocket *clientSocket = tcpServer->nextPendingConnection();
-    clients.append({0, "", 0, 0, clientSocket, new QMutex});
+    clients.append({0, "", 0, 0, clientSocket});
 
     connect(clientSocket, &QTcpSocket::readyRead, [this, clientSocket]() {
         receiveData(clientSocket);
@@ -120,16 +122,19 @@ void MainWindow::newConnection()
     connect(clientSocket, &QTcpSocket::disconnected, [this, clientSocket]() {
         for (int i = 0; i < clients.size(); i++) {
             if (clients[i].socket == clientSocket) {
-                for(const Client& client: clients) {
-                    if(client.target_id == clients[i].id) {
-                        QByteArray data;
-                        QDataStream stream(&data, QIODevice::WriteOnly);
-                        stream << 10;
-                        sendDataToClient(data, client.socket);
-                        break;
+
+                if(clients[i].id != 0) {
+                    for(const Client& client: clients) {
+                        if(client.target_id == clients[i].id) {
+                            QByteArray data;
+                            QDataStream stream(&data, QIODevice::WriteOnly);
+                            stream << 10;
+                            sendDataToClient(data, client.socket);
+                        }
                     }
                 }
-                delete clients[i].mutex;
+
+                qDebug() << "User " << clients[i].name << " disconnect!";
                 clients.removeAt(i);
                 break;
             }
@@ -161,6 +166,7 @@ void MainWindow::receiveData(QTcpSocket *socket)
 
         if (!query.exec()) {
             qDebug() << "Query execution failed!";
+            break;
         }
 
         QByteArray data;
@@ -171,7 +177,7 @@ void MainWindow::receiveData(QTcpSocket *socket)
         if(!query.next()) {
             // No user found
             out << 404;
-                        sendDataToClient(data, socket);
+            sendDataToClient(data, socket);
 
             break;
         }
@@ -181,8 +187,22 @@ void MainWindow::receiveData(QTcpSocket *socket)
         if(password != myStruct.password) {
             // Wrong creadential
             out << 401;
-                        sendDataToClient(data, socket);
+            sendDataToClient(data, socket);
 
+            break;
+        }
+
+        int conflict = 0;
+        for(Client client: clients) {
+            if(client.id == query.value("user_id").toInt()) {
+                conflict = 1;
+                break;
+            }
+        }
+
+        if(conflict) {
+            out << 409;
+            sendDataToClient(data, socket);
             break;
         }
 
@@ -226,6 +246,7 @@ void MainWindow::receiveData(QTcpSocket *socket)
 
         if (!query.exec()) {
             qDebug() << "Query execution failed!";
+            break;
         }
 
         while(query.next()) {
@@ -321,6 +342,7 @@ void MainWindow::receiveData(QTcpSocket *socket)
 
             if (!query.exec()) {
                 qDebug() << "Query execution failed!";
+                break;
             }
 
         } else if (type == 1) {
@@ -333,6 +355,7 @@ void MainWindow::receiveData(QTcpSocket *socket)
 
             if (!query.exec()) {
                 qDebug() << "Query execution failed!";
+                break;
             }
 
         }
@@ -351,6 +374,7 @@ void MainWindow::receiveData(QTcpSocket *socket)
 
         if (!query.exec()) {
             qDebug() << "Query execution failed!";
+            break;
         }
 
         QByteArray data;
@@ -370,6 +394,7 @@ void MainWindow::receiveData(QTcpSocket *socket)
 
         if (!query.exec()) {
             qDebug() << "Query execution failed!";
+            break;
         }
 
 
@@ -394,6 +419,7 @@ void MainWindow::receiveData(QTcpSocket *socket)
 
         if (!query.exec()) {
             qDebug() << "Query select execution failed!";
+            break;
         }
 
         if(query.size() < 1) {
@@ -408,6 +434,7 @@ void MainWindow::receiveData(QTcpSocket *socket)
 
         if (!query.exec()) {
             qDebug() << "Query execution failed!";
+            break;
         }
 
         if(query.size() > 0) {
@@ -423,6 +450,7 @@ void MainWindow::receiveData(QTcpSocket *socket)
 
         if (!query.exec()) {
             qDebug() << "Query insert execution failed!";
+            break;
         }
         out << 200;
         sendDataToClient(data, socket);
@@ -441,6 +469,7 @@ void MainWindow::receiveData(QTcpSocket *socket)
 
         if (!query.exec()) {
             qDebug() << "Query execution failed!";
+            break;
         }
 
         stream << 8;
@@ -469,15 +498,17 @@ void MainWindow::receiveData(QTcpSocket *socket)
         query.bindValue(":userId", userId);
 
         if (!query.exec()) {
-            qDebug() << "Query execution failed!";
+            qDebug() << "Query execution failed! delete";
+            break;
         }
         if(type == 1) {
-            query.prepare("select participant_id where group_id = :groupId and user_id = :userId");
+            query.prepare("select participant_id from group_participants where group_id = :groupId and user_id = :userId");
             query.bindValue(":groupId", groupId);
             query.bindValue(":userId", userId);
 
             if (!query.exec()) {
-                qDebug() << "Query execution failed!";
+                qDebug() << "Query execution failed! select";
+                break;
             }
 
             if(query.next()) {
@@ -491,11 +522,12 @@ void MainWindow::receiveData(QTcpSocket *socket)
             }
 
             if (!query.exec()) {
-                qDebug() << "Query execution failed!";
+                qDebug() << "Query execution failed update or insert!";
+                break;
             }
 
             for(Client& cl: clients) {
-                if(cl.id  == userId) {
+                if(cl.id == userId) {
                     renderGroupToClient(cl.id, cl.socket);
                 }
             }
@@ -507,7 +539,8 @@ void MainWindow::receiveData(QTcpSocket *socket)
         query.bindValue(":groupId", groupId);
 
         if (!query.exec()) {
-            qDebug() << "Query execution failed!";
+            qDebug() << "Query execution failed! group";
+            break;
         }
 
         stream << 8;
@@ -535,6 +568,7 @@ void MainWindow::receiveData(QTcpSocket *socket)
 
         if (!query.exec()) {
             qDebug() << "Query execution failed!";
+            break;
         }
 
         QByteArray data;
@@ -546,6 +580,112 @@ void MainWindow::receiveData(QTcpSocket *socket)
         renderGroupToClient(userId, socket);
         break;
 
+    }
+        // Sign out
+    case 9: {
+        for(Client& client: clients) {
+            if(client.socket == socket) {
+                client.id = 0;
+                client.name = "";
+                client.type = 0;
+                client.target_id = 0;
+                break;
+            }
+        }
+
+        QByteArray data;
+        QDataStream out(&data, QIODevice::WriteOnly);
+
+        out << 11;
+        sendDataToClient(data, socket);
+        renderUsersToClients();
+        break;
+    }
+        //Sign up
+    case 10: {
+        QString username;
+        QString password;
+        QString name;
+
+        stream >> username >> password >> name;
+
+        QSqlQuery query(database);
+
+        // Check username used
+        query.prepare("select * from users where username = :username");
+        query.bindValue(":username", username);
+
+        if (!query.exec()) {
+            qDebug() << "Query execution failed!";
+            break;
+        }
+
+        if(query.size() > 0) {
+            QByteArray data;
+            QDataStream out(&data, QIODevice::WriteOnly);
+            out << 12 << 409;
+            sendDataToClient(data, socket);
+            break;
+        }
+        // Check name used
+        query.prepare("select * from users where name = :name");
+        query.bindValue(":name", name);
+
+        if (!query.exec()) {
+            qDebug() << "Query execution failed!";
+            break;
+        }
+
+        if(query.size() > 0) {
+            QByteArray data;
+            QDataStream out(&data, QIODevice::WriteOnly);
+            out << 12 << 408;
+            sendDataToClient(data, socket);
+            break;
+        }
+
+        query.prepare("insert into users (username, password, name) values (:username, :password, :name) returning *");
+        query.bindValue(":username", username);
+        query.bindValue(":password", password);
+        query.bindValue(":name", name);
+
+        if (!query.exec()) {
+            qDebug() << "Query execution failed!";
+            break;
+        }
+
+        if(!query.next()) {
+            QByteArray data;
+            QDataStream out(&data, QIODevice::WriteOnly);
+            out << 12 << 410;
+            sendDataToClient(data, socket);
+            break;
+        }
+
+        QByteArray data;
+        QDataStream out(&data, QIODevice::WriteOnly);
+
+        out << 1;
+
+        // status
+        out << 200;
+
+
+
+        // user log in
+        out << query.value("user_id").toInt();
+        out << query.value("name").toString();
+
+        for(Client& client: clients) {
+            if(client.socket == socket) {
+                client.id = query.value("user_id").toInt();
+                client.name = query.value("name").toString();
+            }
+        }
+
+        sendDataToClient(data, socket);
+        renderUsersToClients();
+        break;
     }
     }
 }

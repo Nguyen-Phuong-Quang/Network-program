@@ -176,24 +176,37 @@ void Client::readData()
         emit hideChatView();
         break;
     }
+    case 11: {
+        emit navigateToSignIn();
+        break;
+    }
+    case 12: {
+        int code;
+        in >> code;
+        emit errorSignUp(code);
+        break;
+    }
     }
 
     if(in.atEnd()) {
         qDebug() << "Clear data in socket" << Qt::endl;
     }
 
+    emit render();
     mutex.unlock();
 
 }
 
 void Client::sendDataToServer(const QByteArray& data)
 {
+    mutex.lock();
     while (socket->state() != QAbstractSocket::ConnectedState) {
     }
 
     socket->write(data);
     socket->waitForBytesWritten();
-    qDebug() << "Send data";
+    //    qDebug() << "Send data";
+    mutex.unlock();
 }
 
 QString Client::getName() const
@@ -324,13 +337,36 @@ void Client::leftGroup() {
     stream << 8 << currentUserId << targetId;
 
     sendDataToServer(data);
+}
+
+void Client::signOut()
+{
+    QByteArray data;
+    QDataStream stream(&data, QIODevice::WriteOnly);
+
+    stream << 9;
+
+    sendDataToServer(data);
+
+}
+
+void Client::signUp(QString username, QString password, QString name)
+{
+    QByteArray data;
+    QDataStream stream(&data, QIODevice::WriteOnly);
+
+    stream << 10 << username << password << name;
+    sendDataToServer(data);
+}
+
+void Client::switchClientView(int type)
+{
+    if(type == 1) {
+        emit navigateToSignIn();
+    }
+
+    if(type == 2) {
+        emit navigateToSignUp();
+    }
 };
 
-void Client::responseToServerSuccess() {
-        QByteArray data;
-        QDataStream stream(&data, QIODevice::WriteOnly);
-
-        stream << 20205191;
-
-        sendDataToServer(data);
-};

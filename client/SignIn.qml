@@ -7,7 +7,7 @@ Rectangle {
     property string error: ""
     anchors.centerIn: parent
     width: 400
-    height: 280
+    height: 300
     border {
         width: 2
         color: "#cccccc"
@@ -18,9 +18,12 @@ Rectangle {
         if(username.text && password.text) {
             loadingId.visible = true;
             client.signIn(username.text, password.text)
+            username.text = ""
+            password.text = ""
         } else {
-            console.log("Missing field!");
+            signInId.error = "Missing field!"
         }
+
     }
 
     Text {
@@ -129,5 +132,20 @@ Rectangle {
         }
     }
 
-
+    Text{
+        padding: 10
+        anchors.bottom: parent.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        text: qsTr("You don't have account? Sign up here!")
+        color: "blue"
+        font.underline: true
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                client.switchClientView(2);
+            }
+        }
+    }
 }

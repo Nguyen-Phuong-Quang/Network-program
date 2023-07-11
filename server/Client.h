@@ -3,7 +3,6 @@
 
 #include<QString>
 #include<QTcpSocket>
-#include<QMutex>
 
 struct Client {
     int id;
@@ -11,7 +10,6 @@ struct Client {
     int type;
     int target_id;
     QTcpSocket* socket;
-    QMutex* mutex;
 };
 
 #endif // CLIENT_H

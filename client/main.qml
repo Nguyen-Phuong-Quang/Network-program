@@ -10,7 +10,7 @@ Window {
     visible: true
     width: appWidth
     height: 800
-    title: qsTr("Chat app")
+    title: qsTr("Sign in")
     color: "#333333"
 
     function openFindGroupDialog() {
@@ -449,6 +449,30 @@ Window {
                 color: "white"
             }
 
+            Rectangle {
+                anchors.verticalCenter: onlineTextId.verticalCenter
+                anchors.right: parent.right
+                width: signOutTextId.implicitWidth
+                height: signOutTextId.implicitHeight
+                radius: 10
+                anchors.rightMargin: 6
+
+                Text {
+                    id: signOutTextId
+                    padding: 5
+                    text: qsTr("Sign out")
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        client.signOut();
+                    }
+                }
+            }
+
             // List of online user
             ScrollView {
                 id: onlineUserScrollId
@@ -799,6 +823,15 @@ Window {
         }
     }
 
+    Rectangle {
+        id: signUpViewId
+        anchors.fill: parent
+        visible: false
+        SignUp{
+            id: signUpId
+        }
+    }
+
     Connections {
         target: client
 
@@ -813,11 +846,14 @@ Window {
                 windowId.title = client.getName()
                 mainViewId.visible = true;
                 signInViewId.visible = false;
+                signUpViewId.visible = false;
             } else if(statusCode === 404) {
                 signInId.error = "No user found!"
                 console.log("No user found!");
-            }else if(statusCode === 401) {
-                signInId.error = "Wrong creadential!"
+            } else if(statusCode === 401) {
+                signInId.error = "Wrong password!"
+            } else if(statusCode === 409) {
+                signInId.error = "Account is alread signed in!"
             }
         }
 
@@ -861,6 +897,29 @@ Window {
 
         onHideChatView: {
             chatViewRectId.visible = false;
+        }
+
+        onNavigateToSignIn: {
+            signInViewId.visible = true;
+            signUpViewId.visible = false;
+            mainViewId.visible = false;
+            windowId.title = "Sign in"
+        }
+
+        onNavigateToSignUp: {
+            signInViewId.visible = false;
+            signUpViewId.visible = true;
+            mainViewId.visible = false;
+            windowId.title = "Sign up"
+        }
+
+        onErrorSignUp: {
+            if(code == 409)
+                signUpId.error = "Username is used!"
+            else if(code == 408)
+                signUpId.error = "Name is used!"
+            else if(code == 408)
+                signUpId.error = "Error sign in!"
         }
     }
 

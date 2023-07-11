@@ -38,6 +38,9 @@ public slots:
     void getPendingRequests();
     void acceptOrRejectUser(int type, int userId);
     void leftGroup();
+    void signOut();
+    void signUp(QString username, QString password, QString name);
+    void switchClientView(int type);
 
 signals:
     void successConnection();
@@ -50,6 +53,9 @@ signals:
     void renderRequestList();
     void switchSingleChatResponse();
     void hideChatView();
+    void navigateToSignIn();
+    void navigateToSignUp();
+    void errorSignUp(int code);
 
 private slots:
     void readData();
@@ -70,9 +76,6 @@ private:
     QString nameSelected;
     int typeSelected;
     int targetId;
-
-    void responseToServerSuccess();
-
     QMutex mutex;
 
 };
