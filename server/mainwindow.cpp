@@ -518,7 +518,7 @@ void MainWindow::receiveData(QTcpSocket *socket)
             }
 
             if(query.next()) {
-                query.prepare("update group_participants set avtive = 1 where group_id = :groupId and user_id = :userId");
+                query.prepare("update group_participants set active = 1 where group_id = :groupId and user_id = :userId");
                 query.bindValue(":groupId", groupId);
                 query.bindValue(":userId", userId);
             } else {
