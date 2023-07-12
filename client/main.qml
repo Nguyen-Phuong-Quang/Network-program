@@ -805,7 +805,8 @@ Window {
                         anchors.right: parent.right
                         text: "Send"
                         onClicked: {
-                            client.sendMessage(chatTextInputId.text);
+                            if(chatTextInputId.text.trim())
+                                client.sendMessage(chatTextInputId.text.trim());
                             chatTextInputId.text = "";
                         }
                     }
@@ -900,6 +901,7 @@ Window {
         }
 
         onNavigateToSignIn: {
+            signInId.error = ""
             signInViewId.visible = true;
             signUpViewId.visible = false;
             mainViewId.visible = false;
@@ -907,6 +909,8 @@ Window {
         }
 
         onNavigateToSignUp: {
+            signUpId.messageSignUp = ""
+            signUpId.colorSignUp = "red"
             signInViewId.visible = false;
             signUpViewId.visible = true;
             mainViewId.visible = false;
@@ -914,12 +918,18 @@ Window {
         }
 
         onErrorSignUp: {
-            if(code == 409)
-                signUpId.error = "Username is used!"
-            else if(code == 408)
-                signUpId.error = "Name is used!"
-            else if(code == 408)
-                signUpId.error = "Error sign in!"
+            if(code == 409){
+                signUpId.messageSignUp = "Username is used!"
+                signUpId.colorSignUp = "red"
+            }
+            else if(code == 408)  {
+                signUpId.messageSignUp = "Name is used!"
+                signUpId.colorSignUp = "red"
+            }
+            else if(code == 200) {
+                signUpId.messageSignUp = "Sign up successfully!"
+                signUpId.colorSignUp = "green"
+            }
         }
     }
 

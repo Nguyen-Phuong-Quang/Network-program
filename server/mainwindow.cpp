@@ -54,13 +54,19 @@ void MainWindow::renderUsersToClients()
 
     stream << 2;
 
-    quint32 arraySize = static_cast<quint32>(clients.size());
+    int count = std::count_if(clients.begin(), clients.end(), [](const Client& client) {
+        return client.id > 0;
+    });
+
+    quint32 arraySize = static_cast<quint32>(count);
     stream << arraySize;
 
     // Serialize each struct in the array
     for (const Client& client : clients) {
-        stream << client.id;
-        stream << client.name;
+        if(client.id > 0) {
+            stream << client.id;
+            stream << client.name;
+        }
     }
 
     for(Client& client: clients) {
@@ -644,7 +650,7 @@ void MainWindow::receiveData(QTcpSocket *socket)
             break;
         }
 
-        query.prepare("insert into users (username, password, name) values (:username, :password, :name) returning *");
+        query.prepare("insert into users (username, password, name) values (:username, :password, :name)");
         query.bindValue(":username", username);
         query.bindValue(":password", password);
         query.bindValue(":name", name);
@@ -654,37 +660,10 @@ void MainWindow::receiveData(QTcpSocket *socket)
             break;
         }
 
-        if(!query.next()) {
-            QByteArray data;
-            QDataStream out(&data, QIODevice::WriteOnly);
-            out << 12 << 410;
-            sendDataToClient(data, socket);
-            break;
-        }
-
         QByteArray data;
         QDataStream out(&data, QIODevice::WriteOnly);
-
-        out << 1;
-
-        // status
-        out << 200;
-
-
-
-        // user log in
-        out << query.value("user_id").toInt();
-        out << query.value("name").toString();
-
-        for(Client& client: clients) {
-            if(client.socket == socket) {
-                client.id = query.value("user_id").toInt();
-                client.name = query.value("name").toString();
-            }
-        }
-
+        out << 12 << 200;
         sendDataToClient(data, socket);
-        renderUsersToClients();
         break;
     }
     }

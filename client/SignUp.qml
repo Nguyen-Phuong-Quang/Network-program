@@ -4,7 +4,8 @@ import QtQuick.Controls 2.4
 import QtQuick.Layouts 1.3
 
 Rectangle {
-    property string error: ""
+    property string messageSignUp: "wqewq"
+    property string colorSignUp: "green"
     anchors.centerIn: parent
     width: 400
     height: 380
@@ -17,6 +18,9 @@ Rectangle {
     function handleOnClick() {
         if(usernameSignUp.text && passwordSignUp.text && nameSignUp.text) {
             client.signUp(usernameSignUp.text, passwordSignUp.text, nameSignUp.text);
+            usernameSignUp.text = ""
+            passwordSignUp.text = ""
+            nameSignUp.text = ""
         } else {
             signUpId.error = "Missing field!"
         }
@@ -27,7 +31,7 @@ Rectangle {
         id: signUpTextId
         topPadding: 10
         anchors.horizontalCenter: parent.horizontalCenter
-        text: "Sign in"
+        text: "Sign up"
         font.pointSize: 16
         font.bold: true
     }
@@ -151,8 +155,8 @@ Rectangle {
             id: errorTextId
             topPadding: 5
             anchors.horizontalCenter: parent.horizontalCenter
-            text: error
-            color: "red"
+            text: messageSignUp
+            color: colorSignUp
         }
     }
 
