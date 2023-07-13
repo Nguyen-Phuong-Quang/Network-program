@@ -21,7 +21,7 @@ Rectangle {
             username.text = ""
             password.text = ""
         } else {
-            signInId.error = "Missing field!"
+            signInId.error = "Please enter all fields"
         }
 
     }

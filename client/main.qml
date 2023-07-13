@@ -47,21 +47,44 @@ Window {
         mainViewId.opacity = 1
     }
 
-    function openRequestJoinGroupSuccessDialog() {
-        joinGroupDialogId.visible = true
+    function openDialogWithText(s) {
+        testDialog.setText(s)
+        testDialog.visible=true
         mainViewId.opacity = 0.8
-        requestJoinGroupSuccessDialogId.open()
+        testDialog.open()
     }
 
-    function openCreateGroupSuccessDialog() {
-        createGroupSuccessDialogId.visible = true
+    function openSuccessDialog(text) {
+        successDialogId.setText(text);
+        successDialogId.visible = true;
         mainViewId.opacity = 0.8
-        createGroupSuccessDialogId.open()
+        successDialogId.open()
+    }
+
+    function openErrorDialog(text) {
+        errorDialogId.setText(text);
+        errorDialogId.visible = true;
+        mainViewId.opacity = 0.8
+        errorDialogId.open()
     }
 
 
     onWidthChanged: {
         appWidth = width
+    }
+
+    MessageDialog {
+        id: successDialogId
+        title: "Success"
+        text: ""
+        visible: false
+    }
+
+    MessageDialog {
+        id: errorDialogId
+        title: "Error"
+        text: ""
+        visible: false
     }
 
     // Dialog add group with id
@@ -143,7 +166,8 @@ Window {
                 text: "Submit"
                 onClicked: {
                     if(!addGroupInputId.text) {
-                        errorAddGroupTextId.text = "Please enter group name!"
+//                        errorAddGroupTextId.text = "Please enter group name!"
+                        openErrorDialog("Please enter group name!");
                     } else {
                         client.createGroup(addGroupInputId.text);
                     }
@@ -243,10 +267,13 @@ Window {
                 }
                 text: "Request"
                 onClicked: {
+                    errorJoinGroupTextId.text = "";
                     if(!joinGroupInputId.text) {
-                        errorJoinGroupTextId.text = "Please enter group ID!"
+//                        errorJoinGroupTextId.text = "Please enter group ID!"
+                        openErrorDialog("Please enter group ID!")
                     } else if(!parseInt(joinGroupInputId.text)) {
-                        errorJoinGroupTextId.text = "Group ID just contains digit!"
+//                        errorJoinGroupTextId.text = "Group ID just contains digit!"
+                        openErrorDialog("Group ID must contain only digits!")
                     } else {
                         client.requestJoinGroup(parseInt(joinGroupInputId.text));
                     }
@@ -267,21 +294,6 @@ Window {
             }
         }
     }
-
-    MessageDialog {
-        id: requestJoinGroupSuccessDialogId
-        title: "Success"
-        text: "You have successfully requested to join the group!"
-        visible: false
-    }
-
-    MessageDialog {
-        id: createGroupSuccessDialogId
-        title: "Success"
-        text: "Group created successfully!"
-        visible: false
-    }
-
 
     // Dialog request pending
     Rectangle {
@@ -873,17 +885,21 @@ Window {
         onSignInResponse: {
             loadingId.visible = false
             if(statusCode === 200) {
+                openSuccessDialog("Welcome, " + client.getName())
                 windowId.title = client.getName()
                 mainViewId.visible = true;
                 signInViewId.visible = false;
                 signUpViewId.visible = false;
             } else if(statusCode === 404) {
-                signInId.error = "No user found!"
-                console.log("No user found!");
+//                signInId.error = "No user found!"
+//                console.log("No user found!");
+                openErrorDialog("No user found!")
             } else if(statusCode === 401) {
-                signInId.error = "Wrong password!"
+//                signInId.error = "Wrong password!"
+                openErrorDialog("Wrong password!")
             } else if(statusCode === 409) {
-                signInId.error = "Account is alread signed in!"
+//                signInId.error = "Account is alread signed in!"
+                openErrorDialog("User already signed in!")
             }
         }
 
@@ -905,22 +921,26 @@ Window {
         onCreateGroupResponse: {
             if(code === 200) {
                 hideAddGroupDialog();
-                openCreateGroupSuccessDialog();
+                openSuccessDialog("Group successfully created");
             } else if (code === 409) {
-                errorAddGroupTextId.text = "Group name is already used!"
+//                errorAddGroupTextId.text = "Group name is already used!"
+                openErrorDialog("Group name already existed!")
             }
         }
 
         onJoinGroupResponse: {
             if(code === 200) {
                 hideFindGroupDialog();
-                openRequestJoinGroupSuccessDialog();
+//                openRequestJoinGroupSuccessDialog();
+                openSuccessDialog("Successfully request to join group!")
             } else if (code === 404) {
-                errorJoinGroupTextId.text = "Group does not exist!";
+//                errorJoinGroupTextId.text = "Group does not exist!";
+//                openDialogWithText("Not exist")
+                openErrorDialog("Group does not exist!")
             } else if (code === 409) {
-                errorJoinGroupTextId.text = "You are already in group!";
+//                errorJoinGroupTextId.text = "You are already in group!";
+                openErrorDialog("You are already in group!");
             }
-
         }
 
         onRenderRequestList: {
@@ -950,15 +970,18 @@ Window {
 
         onErrorSignUp: {
             if(code == 409){
+                openErrorDialog("Username is existed!");
                 signUpId.messageSignUp = "Username is used!"
                 signUpId.colorSignUp = "red"
             }
             else if(code == 408)  {
+                openErrorDialog("Name is existed")
                 signUpId.messageSignUp = "Name is used!"
                 signUpId.colorSignUp = "red"
             }
             else if(code == 200) {
-                signUpId.messageSignUp = "Sign up successfully!"
+                openSuccessDialog("Sign up successfully!")
+                signUpId.messageSignUp = "Sign up successfully! You can sign in with your new credentials now."
                 signUpId.colorSignUp = "green"
             }
         }
