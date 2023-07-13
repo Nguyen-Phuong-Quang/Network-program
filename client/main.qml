@@ -3,6 +3,7 @@ import QtQuick.Window 2.12
 import QtQuick.Controls 2.4
 import QtQuick.Layouts 1.3
 import QtGraphicalEffects 1.0
+import QtQuick.Dialogs 1.3
 
 Window {
     property int appWidth: 1080
@@ -45,6 +46,19 @@ Window {
         requestsPendingDialogId.visible = false;
         mainViewId.opacity = 1
     }
+
+    function openRequestJoinGroupSuccessDialog() {
+        joinGroupDialogId.visible = true
+        mainViewId.opacity = 0.8
+        requestJoinGroupSuccessDialogId.open()
+    }
+
+    function openCreateGroupSuccessDialog() {
+        createGroupSuccessDialogId.visible = true
+        mainViewId.opacity = 0.8
+        createGroupSuccessDialogId.open()
+    }
+
 
     onWidthChanged: {
         appWidth = width
@@ -253,6 +267,21 @@ Window {
             }
         }
     }
+
+    MessageDialog {
+        id: requestJoinGroupSuccessDialogId
+        title: "Success"
+        text: "You have successfully requested to join the group!"
+        visible: false
+    }
+
+    MessageDialog {
+        id: createGroupSuccessDialogId
+        title: "Success"
+        text: "Group created successfully!"
+        visible: false
+    }
+
 
     // Dialog request pending
     Rectangle {
@@ -876,6 +905,7 @@ Window {
         onCreateGroupResponse: {
             if(code === 200) {
                 hideAddGroupDialog();
+                openCreateGroupSuccessDialog();
             } else if (code === 409) {
                 errorAddGroupTextId.text = "Group name is already used!"
             }
@@ -884,6 +914,7 @@ Window {
         onJoinGroupResponse: {
             if(code === 200) {
                 hideFindGroupDialog();
+                openRequestJoinGroupSuccessDialog();
             } else if (code === 404) {
                 errorJoinGroupTextId.text = "Group does not exist!";
             } else if (code === 409) {

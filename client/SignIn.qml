@@ -136,7 +136,7 @@ Rectangle {
         padding: 10
         anchors.bottom: parent.bottom
         anchors.horizontalCenter: parent.horizontalCenter
-        text: qsTr("You don't have account? Sign up here!")
+        text: qsTr("Don't have account? Sign up here!")
         color: "blue"
         font.underline: true
         MouseArea {

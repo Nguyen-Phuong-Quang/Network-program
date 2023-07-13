@@ -6,8 +6,8 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     QSqlDatabase database = QSqlDatabase::addDatabase("QPSQL");
-    //            database.setHostName("chat-app.c6aoubm3unwy.us-east-1.rds.amazonaws.com");
-    database.setHostName("127.0.0.1");
+    database.setHostName("chat-app.c6aoubm3unwy.us-east-1.rds.amazonaws.com");
+//    database.setHostName("127.0.0.1");
     database.setPort(5432);
     database.setDatabaseName("chat-app");
     database.setUserName("postgres");
